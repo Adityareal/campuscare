@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+/*
+ * CampusCare design tokens.
+ *
+ * One cool-neutral palette with a single pine accent, in light and dark. The theme follows the
+ * operating system. Triage colours are semantic state, never decoration, and always appear
+ * with a text label and an icon so colour is never the only signal.
+ *
+ * Shape rule: panels 14px (rounded-panel), controls 10px (rounded-control), status labels
+ * are full pills (rounded-full). Nothing else.
+ *
+ * All text pairs below were checked for WCAG AA contrast (4.5:1 body, 3:1 input borders).
+ */
+
+:root {
+  color-scheme: light;
+  --canvas: #f4f6f5;
+  --surface: #fbfcfc;
+  --surface-2: #eef1f0;
+  --ink: #121a17;
+  --ink-2: #3c4743;
+  --ink-3: #5a6662;
+  --line: #d9dfdc;
+  --line-input: #7d8a85;
+  --accent: #1f6b52;
+  --accent-hover: #17543f;
+  --accent-ink: #f7faf9;
+  --accent-soft: #e2efe9;
+  --accent-text: #17543f;
+  --urgent: #a3231f;
+  --urgent-ink: #fdf3f2;
+  --urgent-soft: #fbe9e7;
+  --urgent-text: #8e1d1a;
+  --priority: #9a5a00;
+  --priority-soft: #fbefdc;
+  --priority-text: #7a4600;
+  --monitor: #2f5487;
+  --monitor-soft: #e6eef8;
+  --monitor-text: #284a78;
+  --focus: #1f6b52;
+  --shadow: 0 1px 2px rgb(18 40 32 / 0.06), 0 10px 28px -14px rgb(18 40 32 / 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --canvas: #0e1412;
+    --surface: #141c19;
+    --surface-2: #1b2521;
+    --ink: #e6ecea;
+    --ink-2: #b4c0bc;
+    --ink-3: #8f9c97;
+    --line: #26332e;
+    --line-input: #5d6d67;
+    --accent: #4fb48d;
+    --accent-hover: #6cc6a2;
+    --accent-ink: #06231a;
+    --accent-soft: #163a2e;
+    --accent-text: #7fd3b0;
+    --urgent: #e0625a;
+    --urgent-ink: #1f0705;
+    --urgent-soft: #3a1714;
+    --urgent-text: #ff9b8f;
+    --priority: #d99a3e;
+    --priority-soft: #35260f;
+    --priority-text: #f1b766;
+    --monitor: #6f98d6;
+    --monitor-soft: #17263b;
+    --monitor-text: #9cbcf0;
+    --focus: #7fd3b0;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -14px rgb(0 0 0 / 0.7);
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-input: var(--line-input);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-urgent: var(--urgent);
+  --color-urgent-ink: var(--urgent-ink);
+  --color-urgent-soft: var(--urgent-soft);
+  --color-urgent-text: var(--urgent-text);
+  --color-priority: var(--priority);
+  --color-priority-soft: var(--priority-soft);
+  --color-priority-text: var(--priority-text);
+  --color-monitor: var(--monitor);
+  --color-monitor-soft: var(--monitor-soft);
+  --color-monitor-text: var(--monitor-text);
+  --color-focus: var(--focus);
+
+  --font-sans: var(--font-geist-sans), var(--font-devanagari), "Nirmala UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  --radius-panel: 14px;
+  --radius-control: 10px;
+  --shadow-panel: var(--shadow);
+}
+
+@layer base {
+  html {
+    background-color: var(--canvas);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.55;
+    min-height: 100dvh;
+  }
+  /* Devanagari needs extra line height for vowel signs above and below the line. */
+  :lang(hi) body,
+  [lang="hi"] {
+    line-height: 1.75;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--ink);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

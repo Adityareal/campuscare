@@ -1,0 +1,778 @@
+// CampusCare AI - Phase 1 data model.
+//
+// Tenancy: every tenant-owned row carries institutionId, and every service query filters on
+// the caller's institution. Sensitive free text (check-in notes, help request details,
+// messages, clinical notes, review notes) is stored as AES-256-GCM ciphertext, never as
+// plain text. AuditLog is append-only: a trigger in the migration rejects UPDATE, DELETE
+// and TRUNCATE, and each row is hash-chained to the previous row of the same chain.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Identity and tenancy ----------
+
+enum Role {
+  STUDENT
+  COUNSELLOR
+  CLINICIAN
+  INSTITUTION_ADMIN
+  SUPPORT_STAFF
+  PLATFORM_ADMIN
+}
+
+enum Locale {
+  en
+  hi
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Institution {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  city        String
+  emailDomain String
+  createdAt   DateTime @default(now())
+
+  departments Department[]
+  users       User[]
+  config      InstitutionConfiguration?
+  invites     InviteCode[]
+}
+
+model Department {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id])
+  code          String
+  name          String
+
+  students StudentProfile[]
+
+  @@unique([institutionId, code])
+}
+
+model User {
+  id            String       @id @default(cuid())
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  email         String       @unique
+  name          String
+  role          Role
+  status        UserStatus   @default(ACTIVE)
+  passwordHash  String?
+  locale        Locale       @default(en)
+  isDemo        Boolean      @default(false)
+  failedLogins  Int          @default(0)
+  lockedUntil   DateTime?
+  lastLoginAt   DateTime?
+  // TOTP second factor for staff. The secret is encrypted; mfaLastCounter blocks code replay.
+  mfaSecretCt    String?
+  mfaEnabledAt   DateTime?
+  mfaLastCounter Int?
+  createdAt     DateTime     @default(now())
+
+  sessions       Session[]
+  accessTokens   AccessToken[]
+  student        StudentProfile?
+  professional   ProfessionalProfile?
+  consents       ConsentRecord[]
+  notifications  Notification[]
+  checkIns       CheckIn[]       @relation("StudentCheckIns")
+  assessments    Assessment[]    @relation("StudentAssessments")
+  alerts         Alert[]         @relation("StudentAlerts")
+  assignedAlerts Alert[]         @relation("AlertAssignee")
+  cases          Case[]          @relation("StudentCases")
+  slots          AvailabilitySlot[]
+  appointments   Appointment[]   @relation("StudentAppointments")
+  consultations  Appointment[]   @relation("ProfessionalAppointments")
+
+  @@index([institutionId, role])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // MFA_PENDING sessions only allow the second-factor step; they never authorise anything else.
+  stage      String   @default("ACTIVE")
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  userAgent  String?
+
+  @@index([userId])
+}
+
+// One-time links for setting a password (new staff accounts, access resets).
+model AccessToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  purpose   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model StudentProfile {
+  id            String     @id @default(cuid())
+  userId        String     @unique
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId String
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  studentNumber String
+  academicYear  Int
+  contactPhone  String?
+  createdAt     DateTime   @default(now())
+
+  @@unique([institutionId, studentNumber])
+  @@index([institutionId, departmentId])
+}
+
+enum Profession {
+  COUNSELLOR
+  COUNSELLING_PSYCHOLOGIST
+  CLINICAL_PSYCHOLOGIST
+  PSYCHIATRIST
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  SUSPENDED
+}
+
+model ProfessionalProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId      String
+  profession         Profession
+  qualifications     String
+  registrationBody   String?
+  registrationNumber String?
+  verification       VerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  specialisations    String[]
+  languages          String[]
+  feeInr             Int                @default(0)
+  bio                String
+  offersVideo        Boolean            @default(true)
+}
+
+model InviteCode {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id])
+  role          Role        @default(STUDENT)
+  expiresAt     DateTime
+  maxUses       Int
+  uses          Int         @default(0)
+  createdAt     DateTime    @default(now())
+}
+
+enum CheckInCadence {
+  DAILY
+  WEEKLY
+}
+
+model InstitutionConfiguration {
+  id                 String         @id @default(cuid())
+  institutionId      String         @unique
+  institution        Institution    @relation(fields: [institutionId], references: [id])
+  checkInCadence     CheckInCadence @default(WEEKLY)
+  minCohortSize      Int            @default(10)
+  careTeamHours      String
+  crisisContacts     Json
+  onCallResponderId  String?
+  urgentAckMinutes   Int            @default(15)
+  priorityAckHours   Int            @default(24)
+  monitorAckHours    Int            @default(72)
+  retentionMonths    Int            @default(36)
+  riskRules          Json
+  riskRulesVersion   Int            @default(1)
+  updatedAt          DateTime       @updatedAt
+  updatedById        String?
+}
+
+// ---------- Consent ----------
+
+enum ConsentScope {
+  CORE_PROCESSING
+  CARE_TEAM_REVIEW
+  AGGREGATE_ANALYTICS
+}
+
+enum ConsentDecision {
+  GRANTED
+  WITHDRAWN
+}
+
+model ConsentPolicy {
+  id          String   @id @default(cuid())
+  version     String   @unique
+  effectiveAt DateTime
+  contentHash String
+  createdAt   DateTime @default(now())
+
+  records ConsentRecord[]
+}
+
+// Append-only: each grant or withdrawal is a new row. Current state is the latest row per scope.
+model ConsentRecord {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId String
+  policyVersion String
+  policy        ConsentPolicy   @relation(fields: [policyVersion], references: [version])
+  scope         ConsentScope
+  decision      ConsentDecision
+  locale        Locale
+  source        String
+  recordedAt    DateTime        @default(now())
+
+  @@index([userId, scope, recordedAt])
+}
+
+// ---------- Check-ins and assessments ----------
+
+enum WantsToTalk {
+  NO
+  NOT_NOW
+  YES
+}
+
+model CheckIn {
+  id               String       @id @default(cuid())
+  institutionId    String
+  studentId        String
+  student          User         @relation("StudentCheckIns", fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now())
+  mood             Int?
+  stress           Int?
+  sleep            Int?
+  energy           Int?
+  social           Int?
+  academicPressure Int?
+  wantsToTalk      WantsToTalk?
+  noteCiphertext   String?
+  locale           Locale       @default(en)
+
+  @@index([institutionId, studentId, createdAt])
+}
+
+enum Instrument {
+  PHQ9
+  GAD7
+}
+
+enum AssessmentStatus {
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+enum AssessmentSource {
+  SELF
+  SCHEDULED
+  COUNSELLOR_REQUEST
+}
+
+model Assessment {
+  id                String             @id @default(cuid())
+  institutionId     String
+  studentId         String
+  student           User               @relation("StudentAssessments", fields: [studentId], references: [id], onDelete: Cascade)
+  instrument        Instrument
+  instrumentVersion String
+  status            AssessmentStatus   @default(ASSIGNED)
+  source            AssessmentSource
+  requestedById     String?
+  assignedAt        DateTime           @default(now())
+  dueAt             DateTime?
+  completedAt       DateTime?
+  requestedLocale   Locale             @default(en)
+  displayedLocale   Locale?
+
+  responses AssessmentResponse[]
+  score     AssessmentScore?
+
+  @@index([institutionId, studentId, completedAt])
+}
+
+model AssessmentResponse {
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  itemNumber   Int
+  value        Int
+
+  @@unique([assessmentId, itemNumber])
+}
+
+model AssessmentScore {
+  id                   String     @id @default(cuid())
+  assessmentId         String     @unique
+  assessment           Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  total                Int
+  band                 String
+  safetyItemPositive   Boolean    @default(false)
+  functionalDifficulty Int?
+  scoringVersion       String
+  computedAt           DateTime   @default(now())
+}
+
+// ---------- Early warning ----------
+
+enum TriageCategory {
+  ROUTINE
+  MONITOR
+  PRIORITY
+  URGENT
+}
+
+enum AlertStatus {
+  NEW
+  ACKNOWLEDGED
+  REVIEWED
+  CLOSED
+}
+
+enum AlertDecision {
+  NO_ACTION_NEEDED
+  OUTREACH
+  FURTHER_ASSESSMENT
+  REFERRAL
+  CRISIS_PROTOCOL
+}
+
+enum ReviewerFeedback {
+  APPROPRIATE
+  NOT_NEEDED
+  UNDER_TRIAGED
+}
+
+model Alert {
+  id                String            @id @default(cuid())
+  institutionId     String
+  reference         String            @unique
+  studentId         String
+  student           User              @relation("StudentAlerts", fields: [studentId], references: [id], onDelete: Cascade)
+  category          TriageCategory
+  status            AlertStatus       @default(NEW)
+  title             String
+  recommendedAction String
+  assignedToId      String?
+  assignedTo        User?             @relation("AlertAssignee", fields: [assignedToId], references: [id])
+  createdAt         DateTime          @default(now())
+  slaDueAt          DateTime
+  acknowledgedAt    DateTime?
+  acknowledgedById  String?
+  reviewedAt        DateTime?
+  reviewedById      String?
+  closedAt          DateTime?
+  closedById        String?
+  decision          AlertDecision?
+  decisionNoteCt    String?
+  reviewerFeedback  ReviewerFeedback?
+  escalatedAt       DateTime?
+
+  indicators  RiskIndicator[]
+  events      AlertEvent[]
+  escalations EscalationAttempt[]
+  cases       CaseAlert[]
+
+  @@index([institutionId, status, category])
+  @@index([institutionId, studentId])
+}
+
+model RiskIndicator {
+  id            String         @id @default(cuid())
+  institutionId String
+  studentId     String
+  alertId       String
+  alert         Alert          @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  ruleCode      String
+  ruleVersion   Int
+  // Stable identity of the finding (rule + anchoring evidence). Event-anchored findings
+  // never re-fire for the same evidence, even after the alert is closed.
+  dedupeKey     String
+  domain        String
+  category      TriageCategory
+  explanation   String
+  evidence      Json
+  createdAt     DateTime       @default(now())
+
+  @@index([institutionId, studentId, ruleCode])
+  @@index([studentId, dedupeKey])
+}
+
+model AlertEvent {
+  id           String          @id @default(cuid())
+  alertId      String
+  alert        Alert           @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  actorId      String?
+  type         String
+  fromCategory TriageCategory?
+  toCategory   TriageCategory?
+  // System-generated text only. Anything a person typed goes to noteCt (encrypted).
+  note         String?
+  noteCt       String?
+  createdAt    DateTime        @default(now())
+
+  @@index([alertId, createdAt])
+}
+
+// One attempt to reach someone under the crisis protocol: an on-call responder (targetUserId),
+// the student, or an outside service (targetLabel).
+model EscalationAttempt {
+  id             String    @id @default(cuid())
+  alertId        String
+  alert          Alert     @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  targetUserId   String?
+  targetLabel    String?
+  channel        String
+  attemptedAt    DateTime  @default(now())
+  acknowledgedAt DateTime?
+  outcome        String
+  noteCt         String?
+  recordedById   String?
+
+  @@index([alertId, attemptedAt])
+}
+
+// ---------- Help requests and cases ----------
+
+enum HelpRequestType {
+  GENERAL_SUPPORT
+  ACADEMIC_STRESS
+  ANXIETY
+  COUNSELLING_APPOINTMENT
+  PSYCHIATRIC_CONSULTATION
+  URGENT_SUPPORT
+}
+
+model HelpRequest {
+  id            String          @id @default(cuid())
+  institutionId String
+  studentId     String
+  type          HelpRequestType
+  detailsCt     String?
+  origin        String          @default("help_form")
+  createdAt     DateTime        @default(now())
+  caseId        String?
+  case          Case?           @relation(fields: [caseId], references: [id])
+
+  @@index([institutionId, studentId, createdAt])
+}
+
+enum CaseStatus {
+  OPEN
+  ACTIVE
+  MONITORING
+  CLOSED
+}
+
+enum CaseSource {
+  ALERT
+  HELP_REQUEST
+  COUNSELLOR
+}
+
+model Case {
+  id                     String         @id @default(cuid())
+  institutionId          String
+  reference              String         @unique
+  studentId              String
+  student                User           @relation("StudentCases", fields: [studentId], references: [id], onDelete: Cascade)
+  status                 CaseStatus     @default(OPEN)
+  priority               TriageCategory
+  source                 CaseSource
+  openedAt               DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  acknowledgedAt         DateTime?
+  reviewedAt             DateTime?
+  contactedAt            DateTime?
+  arrangedAt             DateTime?
+  referredAt             DateTime?
+  appointmentUpdatedAt   DateTime?
+  followUpScheduledAt    DateTime?
+  outcomeDocumentedAt    DateTime?
+  closedAt               DateTime?
+  returnedToMonitoringAt DateTime?
+  nextReviewAt           DateTime?
+  outcomeNoteCt          String?
+  missedConcern          Boolean        @default(false)
+
+  assignments  CaseAssignment[]
+  alerts       CaseAlert[]
+  helpRequests HelpRequest[]
+  referrals    Referral[]
+  followUps    FollowUp[]
+  messages     Message[]
+  events       CaseEvent[]
+
+  @@index([institutionId, status, priority])
+  @@index([institutionId, studentId])
+}
+
+model CaseAssignment {
+  id           String    @id @default(cuid())
+  caseId       String
+  case         Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  userId       String
+  assignedById String?
+  assignedAt   DateTime  @default(now())
+  endedAt      DateTime?
+
+  @@index([userId, endedAt])
+}
+
+model CaseAlert {
+  caseId   String
+  case     Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  alertId  String
+  alert    Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  linkedAt DateTime @default(now())
+
+  @@id([caseId, alertId])
+}
+
+model CaseEvent {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  actorId   String?
+  type      String
+  // System-generated summary. Anything a person typed goes to detailCt (encrypted).
+  summary   String
+  detailCt  String?
+  createdAt DateTime @default(now())
+
+  @@index([caseId, createdAt])
+}
+
+// ---------- Referrals, telehealth and follow-up ----------
+
+enum ReferralService {
+  CAMPUS_COUNSELLING
+  CLINICAL_PSYCHOLOGY
+  PSYCHIATRY
+  EXTERNAL_SERVICE
+}
+
+enum ReferralStatus {
+  CREATED
+  BOOKED
+  ATTENDED
+  NOT_ATTENDED
+  DECLINED
+  CLOSED
+}
+
+model Referral {
+  id             String          @id @default(cuid())
+  institutionId  String
+  caseId         String
+  case           Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  studentId      String
+  createdById    String
+  service        ReferralService
+  professionalId String?
+  reasonCt       String
+  status         ReferralStatus  @default(CREATED)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  appointments Appointment[]
+
+  @@index([institutionId, studentId, status])
+}
+
+enum SlotStatus {
+  OPEN
+  BOOKED
+  BLOCKED
+}
+
+enum ConsultationMode {
+  VIDEO
+  IN_PERSON
+}
+
+model AvailabilitySlot {
+  id             String           @id @default(cuid())
+  institutionId  String
+  professionalId String
+  professional   User             @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  startsAt       DateTime
+  endsAt         DateTime
+  mode           ConsultationMode @default(VIDEO)
+  status         SlotStatus       @default(OPEN)
+  appointmentId  String?          @unique
+
+  @@unique([professionalId, startsAt])
+  @@index([institutionId, status, startsAt])
+}
+
+enum AppointmentStatus {
+  BOOKED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+model Appointment {
+  id                String            @id @default(cuid())
+  institutionId     String
+  studentId         String
+  student           User              @relation("StudentAppointments", fields: [studentId], references: [id], onDelete: Cascade)
+  professionalId    String
+  professional      User              @relation("ProfessionalAppointments", fields: [professionalId], references: [id])
+  referralId        String?
+  referral          Referral?         @relation(fields: [referralId], references: [id])
+  slotId            String
+  startsAt          DateTime
+  endsAt            DateTime
+  mode              ConsultationMode
+  status            AppointmentStatus @default(BOOKED)
+  cancelledAt       DateTime?
+  cancelledById     String?
+  cancelReason      String?
+  rescheduledFromId String?
+  reminderSentAt    DateTime?
+  createdAt         DateTime          @default(now())
+
+  consultation Consultation?
+  followUps    FollowUp[]
+
+  @@index([institutionId, studentId, startsAt])
+  @@index([institutionId, professionalId, startsAt])
+}
+
+model Consultation {
+  id                String    @id @default(cuid())
+  appointmentId     String    @unique
+  appointment       Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  institutionId     String
+  provider          String
+  roomName          String
+  status            String    @default("WAITING")
+  studentJoinedAt   DateTime?
+  clinicianJoinedAt DateTime?
+  startedAt         DateTime?
+  endedAt           DateTime?
+  recordingEnabled  Boolean   @default(false)
+
+  notes ClinicalNote[]
+}
+
+model ClinicalNote {
+  id             String        @id @default(cuid())
+  institutionId  String
+  studentId      String
+  authorId       String
+  appointmentId  String?
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id])
+  kind           String
+  bodyCt         String
+  createdAt      DateTime      @default(now())
+
+  @@index([institutionId, studentId, createdAt])
+}
+
+enum FollowUpStatus {
+  SCHEDULED
+  DONE
+  MISSED
+  CANCELLED
+}
+
+model FollowUp {
+  id            String         @id @default(cuid())
+  institutionId String
+  caseId        String?
+  case          Case?          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id])
+  studentId     String
+  assignedToId  String
+  kind          String
+  dueAt         DateTime
+  status        FollowUpStatus @default(SCHEDULED)
+  completedAt   DateTime?
+  outcomeCt     String?
+  remindedAt    DateTime?
+  createdById   String
+  createdAt     DateTime       @default(now())
+
+  @@index([institutionId, assignedToId, status, dueAt])
+}
+
+model Message {
+  id            String    @id @default(cuid())
+  institutionId String
+  caseId        String
+  case          Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  senderId      String
+  bodyCt        String
+  createdAt     DateTime  @default(now())
+  readAt        DateTime?
+
+  @@index([caseId, createdAt])
+}
+
+// Notification copy is resolved from `template` at render time, so stored rows never carry
+// mental-health details that could leak through lock-screen previews or email subjects.
+model Notification {
+  id            String    @id @default(cuid())
+  institutionId String?
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template      String
+  link          String?
+  channel       String    @default("IN_APP")
+  createdAt     DateTime  @default(now())
+  readAt        DateTime?
+
+  @@index([userId, readAt])
+}
+
+// ---------- Audit ----------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  chain      String
+  seq        Int
+  actorId    String?
+  actorRole  String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  prevHash   String
+  hash       String   @unique
+
+  @@unique([chain, seq])
+  @@index([chain, createdAt])
+}

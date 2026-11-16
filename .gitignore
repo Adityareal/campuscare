@@ -1,0 +1,26 @@
+﻿# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# local database (PGlite data directory) and generated client
+.pglite/
+src/generated/
+
+# env files: only the documented template is committed
+.env
+.env.local
+.env.*.local
+
+# logs and OS noise
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db
+
+# local screenshots from verification runs
+.screenshots/

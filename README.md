@@ -9,7 +9,8 @@ Phase 1 covers: student onboarding with consent choices, check-ins, PHQ-9 and GA
 ## Requirements
 
 - Node.js 22.12 or later
-- No local database server. Local development uses PGlite, an in-process Postgres stored in `.pglite`.
+- No local database server. CampusCare uses one MongoDB Atlas database for both the live site and local development. Put its connection string in `DATABASE_URL` in `.env` (ask the owner for it).
+- **Local development writes to the live database.** Anything you create, edit or reset locally appears on the live demo straight away.
 
 ## Quick start
 
@@ -20,9 +21,7 @@ npm install
 Copy-Item .env.example .env
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # paste into FIELD_ENCRYPTION_KEY
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # paste into CRON_SECRET
-# edit .env: set DEMO_MODE="true" for demos
-npx prisma generate
-npm run db:reset
+# edit .env: set DATABASE_URL to the Atlas connection string, and DEMO_MODE="true" for demos
 npm run dev
 ```
 
@@ -33,13 +32,13 @@ npm install
 cp .env.example .env
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # paste into FIELD_ENCRYPTION_KEY
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # paste into CRON_SECRET
-# edit .env: set DEMO_MODE="true" for demos
-npx prisma generate
-npm run db:reset
+# edit .env: set DATABASE_URL to the Atlas connection string, and DEMO_MODE="true" for demos
 npm run dev
 ```
 
-Open http://localhost:3000. `npm run db:reset` deletes `.pglite`, applies the migrations and loads the demo data. Stop any running server first.
+Open http://localhost:3000. `npm install` also generates the Prisma client. The Atlas database already holds the demo data, so there is nothing to load.
+
+`npm run db:reset -- --confirm <database name>` drops every collection in the `DATABASE_URL` database, recreates the indexes and reloads the demo data. That is the live database, so it refuses to run unless the name you pass matches the database name in the URL, and it prints only the host and database name.
 
 Production check: `npm run build`, then `npx next start`.
 
@@ -74,15 +73,14 @@ Public pages that need no sign-in: `/` (landing), `/try` (interactive walk-throu
 | `npm start` | Start the production server (`next start`) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Run the Vitest suite once |
-| `npm run db:generate` | Generate the Prisma client into `src/generated/prisma` |
-| `npm run db:migration:init` | Print SQL that creates the whole schema from empty, for writing the initial migration |
-| `npm run db:reset` | Delete the local PGlite database, migrate and seed demo data |
-| `npm run db:seed` | Run the seed script only |
-| `npm run db:deploy` | Apply migrations to the database in `DATABASE_URL` (`prisma migrate deploy`) |
+| `npm run db:generate` | Generate the Prisma client (also runs on `npm install`) |
+| `npm run db:push` | Create the collections' indexes in the `DATABASE_URL` database (`prisma db push`) |
+| `npm run db:seed` | Load the demo data into the `DATABASE_URL` database |
+| `npm run db:reset -- --confirm <name>` | Drop every collection in the `DATABASE_URL` database, push the indexes and seed. Refuses without a matching `--confirm` |
 
 ## Architecture in brief
 
-Next.js 16 App Router with React 19 and TypeScript, Tailwind CSS v4, Prisma 7 on PostgreSQL, Zod 4 for validation. Pages are Server Components that call a role guard first. Business rules live in `src/lib/services`, one transaction per mutation, each with a permission check, a tenant scope and an audit entry. The risk engine is in `src/lib/risk`. See [docs/architecture.md](docs/architecture.md) for the conventions, route map and contracts between modules.
+Next.js 16 App Router with React 19 and TypeScript, Tailwind CSS v4, Prisma 6 on MongoDB Atlas, Zod 4 for validation. Pages are Server Components that call a role guard first. Business rules live in `src/lib/services`, one transaction per mutation, each with a permission check, a tenant scope and an audit entry. The risk engine is in `src/lib/risk`. See [docs/architecture.md](docs/architecture.md) for the conventions, route map and contracts between modules.
 
 Safety rules the code enforces:
 
@@ -93,16 +91,16 @@ Safety rules the code enforces:
 - Institution admins see aggregates only, with small groups suppressed (minimum group size of 5 or more).
 - Clinical notes are readable only by the author or a clinician who has had an appointment with that student, and every read is audited.
 - Free text a person types about a student is encrypted at field level.
-- The audit log is append-only and hash-chained, so edits can be detected.
+- The audit log is append-only and hash-chained, so edits can be detected. MongoDB has no triggers, so the app's Prisma client refuses updates and deletes of audit entries and updates of consent records. Someone with direct database access can still change rows; the hash chain shows it.
 - Crisis numbers are always reachable, without signing in.
 
 ## Testing
 
-`npm test` runs Vitest against an in-memory PGlite database. It covers field encryption, audit hash chain, TOTP, role permissions, PHQ-9 and GAD-7 scoring, the risk rules and engine, small-group suppression, notification templates, English and Hindi string parity, migrations, and integration flows for consent and check-ins, risk alerts, human review, and tenant isolation with audit. `npm run typecheck` runs the TypeScript compiler.
+`npm test` runs Vitest against a throwaway in-memory MongoDB replica set (`mongodb-memory-server`) that starts with the run and disappears when it finishes; each test file gets its own empty database. It never touches Atlas. The first run downloads a MongoDB 8.0 server binary into a local cache. It covers field encryption, audit hash chain, TOTP, role permissions, PHQ-9 and GAD-7 scoring, the risk rules and engine, small-group suppression, notification templates, English and Hindi string parity, the append-only guard and transaction retry, and integration flows for consent and check-ins, risk alerts, human review, and tenant isolation with audit. `npm run typecheck` runs the TypeScript compiler.
 
 ## Pilot deployment
 
-- Use a managed Postgres: set `DATABASE_URL` to its connection string and run `npm run db:deploy`.
+- Set `DATABASE_URL` (or `MONGODB_URI`) to the Atlas connection string. Atlas must run as a replica set, which every Atlas cluster does. Run `npm run db:push` after a schema change.
 - Set `DEMO_MODE=false`.
 - Provide `FIELD_ENCRYPTION_KEY` from a secret store. Losing it makes encrypted text unreadable, so back it up there.
 - Set `APP_ORIGIN` to the public https origin.

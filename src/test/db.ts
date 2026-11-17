@@ -1,40 +1,52 @@
 import "./env";
-import { PGlite } from "@electric-sql/pglite";
-import { PrismaPGlite } from "pglite-prisma-adapter";
-import { PrismaClient, type Department, type Institution, type Prisma, type User } from "@/generated/prisma/client";
-import type { ConsentDecision, ConsentScope, Locale, Profession, Role } from "@/generated/prisma/enums";
+import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import path from "node:path";
+import type { Department, Institution, Prisma, User } from "@prisma/client";
+import type { ConsentDecision, ConsentScope, Locale, Profession, Role } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { now } from "@/lib/clock";
-import { db as appDb, setDbForTesting, type Db } from "@/lib/db";
-import { applyMigrations } from "@/lib/db-migrate";
+import { createDbClient, db as appDb, setDbForTesting, type Db } from "@/lib/db";
 import { DEFAULT_RULES } from "@/lib/risk/rules";
 import { CURRENT_POLICY_VERSION, ensureCurrentPolicy } from "@/lib/services/consent";
 
 /** Fixed starting time for integration tests. Pass it to setClock in beforeEach. */
 export const TEST_START = new Date("2026-11-10T05:00:00.000Z");
 
-export type TestDb = { db: Db; pg: PGlite; close: () => Promise<void> };
+export type TestDb = { db: Db; url: string; close: () => Promise<void> };
+
+/** The URL of the throwaway replica set that vitest's globalSetup started, with a database name. */
+export function testDatabaseUrl(name: string): string {
+  const base = process.env.TEST_MONGO_URI;
+  if (!base) throw new Error("TEST_MONGO_URI is not set: the in-memory MongoDB is started by src/test/global-setup.ts.");
+  const url = new URL(base);
+  url.pathname = `/${name}`;
+  return url.toString();
+}
 
 /**
- * A fresh in-memory Postgres with every migration applied, wired in as the application's
- * database client so services under test use it.
+ * A fresh, empty database with its indexes created (`prisma db push`, so unique indexes behave as
+ * in production), wired in as the application's database client so services under test use it.
+ * Each test file gets its own database in the shared in-memory replica set; close() drops it.
  */
 export async function createTestDb(): Promise<TestDb> {
-  const pg = new PGlite();
-  await pg.waitReady;
-  await applyMigrations(pg);
-  const db = new PrismaClient({ adapter: new PrismaPGlite(pg) });
+  const url = testDatabaseUrl(`test_${randomBytes(6).toString("hex")}`);
+  const prismaCli = path.resolve(process.cwd(), "node_modules", "prisma", "build", "index.js");
+  execFileSync(process.execPath, [prismaCli, "db", "push", "--skip-generate", "--accept-data-loss"], {
+    env: { ...process.env, DATABASE_URL: url },
+    stdio: "pipe",
+  });
+  const db = createDbClient(url);
   setDbForTesting(db);
   return {
     db,
-    pg,
+    url,
     close: async () => {
+      await db.$runCommandRaw({ dropDatabase: 1 });
       await db.$disconnect();
-      await pg.close();
     },
   };
 }
-
 // ---------- Fixtures ----------
 
 let serial = 0;

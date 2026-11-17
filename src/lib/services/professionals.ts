@@ -1,4 +1,4 @@
-import type { ConsultationMode, Profession } from "@/generated/prisma/enums";
+import type { ConsultationMode, Profession } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { DAY, now } from "@/lib/clock";

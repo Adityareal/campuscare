@@ -3,7 +3,7 @@ import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { decryptField, encryptField } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 
 export const NOTE_KINDS = ["CONSULTATION", "ASSESSMENT", "RECOMMENDATION", "REFERRAL"] as const;
@@ -30,7 +30,7 @@ export async function addClinicalNote(
   if (body.length < 3) fail("VALIDATION", "Write the note first.");
   if (body.length > MAX_NOTE_LENGTH) fail("VALIDATION", `Keep the note under ${MAX_NOTE_LENGTH} characters.`);
 
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const appt = await tx.appointment.findFirst({
       where: { id: input.appointmentId, institutionId, professionalId: actor.userId },
       select: { id: true, studentId: true, consultation: { select: { id: true } } },

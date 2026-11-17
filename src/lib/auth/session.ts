@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { now } from "@/lib/clock";
 import { randomToken, sha256 } from "@/lib/crypto";

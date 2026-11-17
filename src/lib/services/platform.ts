@@ -3,7 +3,7 @@ import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { DEFAULT_RULES } from "@/lib/risk/rules";
 import { emailSchema, issueSetPasswordLink, parseInput, personNameSchema, type OneTimeLink } from "@/lib/services/admin";
@@ -74,7 +74,7 @@ export async function createInstitution(
 ): Promise<OneTimeLink & { institutionId: string }> {
   assertCan(actor, "tenant.manage");
   const data = parseInput(CreateInstitutionSchema, input);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const [slugTaken, emailTaken] = await Promise.all([
       tx.institution.findUnique({ where: { slug: data.slug }, select: { id: true } }),
       tx.user.findUnique({ where: { email: data.adminEmail }, select: { id: true } }),

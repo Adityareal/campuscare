@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 import { RowActionForm, VerifyProfessionalForm } from "@/components/admin/forms";
 import { orNotFound } from "@/components/admin/not-found";
 import { EmptyState, KeyValueList, PageHeader, Panel, StatusPill, Table, Td, Th, When } from "@/components/ui";

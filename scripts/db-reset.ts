@@ -1,70 +1,55 @@
 /**
- * Rebuilds the local PGlite database from scratch: deletes the data directory, applies every
- * migration and, when prisma/seed.ts exists, loads the demo data.
+ * Rebuilds the CampusCare database from scratch: drops the database named in DATABASE_URL
+ * (every collection), creates the indexes with `prisma db push`, then loads the demo data.
  *
- *   npm run db:reset
+ *   npm run db:reset -- --confirm <database name>
  *
- * Only ever touches a local PGlite directory. A real Postgres URL, or the in-memory test
- * database, is refused.
+ * DATABASE_URL is the live Atlas database, so this refuses to run unless --confirm matches the
+ * database name in the URL. It prints the host and database name, never the credentials.
  */
 import "dotenv/config";
-import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { PGlite } from "@electric-sql/pglite";
-import { applyMigrations } from "../src/lib/db-migrate";
+import { createDbClient, databaseUrl } from "../src/lib/db";
 
-function resolveTarget(): string {
-  const url = process.env.DATABASE_URL ?? "";
-  if (!url.startsWith("pglite:")) {
-    throw new Error('db:reset only works on a local PGlite database. Set DATABASE_URL to "pglite:./.pglite".');
-  }
-  const target = url.slice("pglite:".length);
-  if (!target || target === "memory") {
-    throw new Error("db:reset needs a PGlite directory, not the in-memory database.");
-  }
-  const cwd = process.cwd();
-  const resolved = path.resolve(cwd, target);
-  const rel = path.relative(cwd, resolved);
-  // Refuse anything that would delete the project itself or a directory outside it.
-  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(`Refusing to delete ${resolved}: the PGlite directory must be inside the project.`);
-  }
-  return resolved;
+/** Host and database name of a mongodb:// or mongodb+srv:// URL, without credentials. */
+function describeTarget(url: string): { host: string; database: string } {
+  const m = /^mongodb(?:\+srv)?:\/\/(?:[^@/]*@)?([^/?]+)\/([^?]*)/.exec(url);
+  if (!m?.[1] || !m[2]) throw new Error("DATABASE_URL must be a MongoDB URL that names a database, e.g. mongodb+srv://user:pass@host/campuscare.");
+  return { host: m[1], database: decodeURIComponent(m[2]) };
 }
 
 async function main(): Promise<void> {
-  const target = resolveTarget();
-  await rm(target, { recursive: true, force: true });
-  console.log(`[db:reset] removed ${target}`);
+  const url = databaseUrl();
+  const { host, database } = describeTarget(url);
+  const flag = process.argv.indexOf("--confirm");
+  const confirmed = flag !== -1 ? process.argv[flag + 1] : undefined;
+  console.log(`[db:reset] target: host ${host}, database ${database}`);
+  if (confirmed !== database) {
+    throw new Error(`Refusing to reset. This drops every collection in "${database}". Re-run with: npm run db:reset -- --confirm ${database}`);
+  }
 
-  const pg = new PGlite(target);
+  const client = createDbClient(url);
   try {
-    await pg.waitReady;
-    const applied = await applyMigrations(pg);
-    console.log(`[db:reset] applied ${applied.length} migration(s)${applied.length ? `: ${applied.join(", ")}` : ""}`);
+    await client.$runCommandRaw({ dropDatabase: 1 });
   } finally {
-    await pg.close();
+    await client.$disconnect();
   }
+  console.log("[db:reset] dropped all collections.");
 
-  const seedPath = path.resolve(process.cwd(), "prisma", "seed.ts");
-  if (!existsSync(seedPath)) {
-    console.log("[db:reset] prisma/seed.ts not found, skipping demo data.");
-    return;
-  }
-  const mod = (await import(pathToFileURL(seedPath).href)) as { seed?: () => Promise<void> };
-  if (typeof mod.seed !== "function") {
-    console.log("[db:reset] prisma/seed.ts does not export seed(), skipping demo data.");
-    return;
-  }
-  // The seed opens its own client on DATABASE_URL; close it afterwards so the directory lock is released.
-  const { getDb } = await import("../src/lib/db");
+  const prismaCli = path.resolve(process.cwd(), "node_modules", "prisma", "build", "index.js");
+  execFileSync(process.execPath, [prismaCli, "db", "push", "--skip-generate", "--accept-data-loss"], {
+    env: { ...process.env, DATABASE_URL: url },
+    stdio: "inherit",
+  });
+
+  const { seed } = (await import("../prisma/seed")) as { seed: () => Promise<void> };
+  const { closeDb } = await import("../src/lib/db");
   try {
-    await mod.seed();
+    await seed();
     console.log("[db:reset] demo data loaded.");
   } finally {
-    await getDb().$disconnect();
+    await closeDb();
   }
 }
 

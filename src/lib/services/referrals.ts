@@ -1,10 +1,10 @@
-import type { Profession, ReferralService, ReferralStatus } from "@/generated/prisma/enums";
+import type { Profession, ReferralService, ReferralStatus } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { encryptField } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { logCaseEvent, markMilestone } from "@/lib/services/cases";
 import { notify } from "@/lib/services/notifications";
@@ -70,7 +70,7 @@ export async function createReferral(actor: UserActor, input: ReferralInput): Pr
   if (!REFERRAL_SERVICES.includes(input.service)) fail("VALIDATION", "Choose a service for the referral.");
   const reason = input.reason.trim();
   if (reason.length < 3) fail("VALIDATION", "Write a short reason for the referral.");
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const c = await tx.case.findFirst({ where: { id: input.caseId, institutionId } });
     if (!c) fail("NOT_FOUND", "Case not found.");
     if (c.status === "CLOSED") fail("INVALID_TRANSITION", "This case is closed. Reopen it before adding a referral.");
@@ -119,7 +119,7 @@ export async function createReferral(actor: UserActor, input: ReferralInput): Pr
 export async function updateReferralStatus(actor: UserActor, referralId: string, status: ReferralStatus, note?: string | null): Promise<void> {
   assertCan(actor, "referral.create");
   const institutionId = tenantOf(actor);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const r = await tx.referral.findFirst({ where: { id: referralId, institutionId } });
     if (!r) fail("NOT_FOUND", "Referral not found.");
     if (!COUNSELLOR_TRANSITIONS[r.status].includes(status)) {

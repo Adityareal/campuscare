@@ -1,4 +1,4 @@
-import type { Locale } from "@/generated/prisma/enums";
+import type { Locale } from "@prisma/client";
 import { en, type Dictionary } from "@/lib/i18n/en";
 import { hi } from "@/lib/i18n/hi";
 

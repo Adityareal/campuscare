@@ -1,11 +1,11 @@
-import type { FollowUpStatus } from "@/generated/prisma/enums";
+import type { FollowUpStatus } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { systemActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { HOUR, now } from "@/lib/clock";
 import { encryptOptional } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { logCaseEvent, markMilestone } from "@/lib/services/cases";
 import { notify } from "@/lib/services/notifications";
@@ -52,7 +52,7 @@ export async function scheduleFollowUp(actor: UserActor, input: FollowUpInput): 
   if (!(FOLLOW_UP_KINDS as readonly string[]).includes(input.kind)) fail("VALIDATION", "Choose the kind of follow-up.");
   if (Number.isNaN(input.dueAt.getTime())) fail("VALIDATION", "Choose a valid due date and time.");
   if (input.dueAt.getTime() <= now().getTime()) fail("VALIDATION", "Choose a due time in the future.");
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const c = await tx.case.findFirst({ where: { id: input.caseId, institutionId } });
     if (!c) fail("NOT_FOUND", "Case not found.");
     if (c.status === "CLOSED") fail("INVALID_TRANSITION", "This case is closed. Reopen it before scheduling a follow-up.");
@@ -94,7 +94,7 @@ export async function completeFollowUp(
   assertCan(actor, "case.manage");
   const institutionId = tenantOf(actor);
   if (!FOLLOW_UP_COMPLETIONS.includes(input.status)) fail("VALIDATION", "Choose how the follow-up ended.");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const f = await tx.followUp.findFirst({ where: { id: followUpId, institutionId } });
     if (!f) fail("NOT_FOUND", "Follow-up not found.");
     if (f.status !== "SCHEDULED") fail("INVALID_TRANSITION", "This follow-up has already been completed.");
@@ -162,7 +162,7 @@ export async function notifyDueFollowUps(institutionId: string, at: Date): Promi
     orderBy: { dueAt: "asc" },
   });
   if (due.length === 0) return 0;
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     let sent = 0;
     for (const f of due) {
       // Claim the row first so overlapping ticks cannot remind twice.

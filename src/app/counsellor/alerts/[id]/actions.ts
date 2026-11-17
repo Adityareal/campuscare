@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { AlertDecision, ReviewerFeedback, TriageCategory } from "@/generated/prisma/enums";
+import type { AlertDecision, ReviewerFeedback, TriageCategory } from "@prisma/client";
 import { pickOne } from "@/components/care/form-parse";
 import { formOptional, formString, guarded, type ActionState } from "@/lib/action-state";
 import { requireCareTeam } from "@/lib/auth/guards";

@@ -1,4 +1,4 @@
-import type { Locale, Role } from "@/generated/prisma/enums";
+import type { Locale, Role } from "@prisma/client";
 
 /** A signed-in person acting through the UI. */
 export type UserActor = {

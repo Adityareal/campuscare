@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 import { LinkTabs } from "@/components/admin/figure";
 import { InviteStaffForm, RowActionForm, StudentInviteForm } from "@/components/admin/forms";
 import { EmptyState, PageHeader, Panel, StatusPill, Table, Td, Th, When, buttonClass, inputClass, linkClass } from "@/components/ui";

@@ -10,16 +10,35 @@ changing anything.
 |---|---|
 | App | Next.js 16 App Router, React 19, TypeScript (strict, `noUncheckedIndexedAccess`) |
 | Styling | Tailwind CSS v4 with CSS-variable tokens in `src/app/globals.css` |
-| Data | PostgreSQL via Prisma 7 (`prisma-client` generator, output `src/generated/prisma`) |
-| Local DB | PGlite (in-process Postgres) at `./.pglite`; tests use `pglite:memory` |
+| Data | MongoDB Atlas via Prisma 6.19 (`prisma-client-js` generator, client in `node_modules/@prisma/client`) |
+| Database | One Atlas database, shared by the live site and local development (`DATABASE_URL`, or `MONGODB_URI`). Local changes show up on the live demo. Tests use a throwaway in-memory replica set from `mongodb-memory-server` that disappears when the run ends |
 | Validation | Zod 4 |
 | Icons | `@phosphor-icons/react` (`*Icon` names). Server components import from `@phosphor-icons/react/dist/ssr` |
 | Fonts | Geist Sans and Geist Mono (`geist`), Noto Sans Devanagari via `next/font/google` |
 | Tests | Vitest (`src/**/*.test.ts`) |
 
-`prisma/schema.prisma` is the source of truth for the data model. If the generated client in
-`src/generated/prisma` disagrees with the schema, the client is stale: regenerate it, never code
-against the stale shape.
+`prisma/schema.prisma` is the source of truth for the data model. If the generated client
+disagrees with the schema, the client is stale: regenerate it (`npm run db:generate`), never code
+against the stale shape. There are no migrations: `npm run db:push` creates the indexes, including
+every unique index the code relies on.
+
+### What MongoDB does not enforce
+
+The database checks unique indexes and nothing else. The app code enforces the rest:
+
+- **Foreign keys.** Relations are emulated by Prisma (`relationMode = "prisma"` is implied on
+  MongoDB). Nothing stops a raw write from pointing at a missing row, and `onDelete` actions run in
+  the Prisma client, not the database.
+- **Append-only tables.** `src/lib/db.ts` wraps every client in an extension that throws on
+  `update`, `updateMany`, `upsert`, `delete` and `deleteMany` of `AuditLog`, and on `update`,
+  `updateMany` and `upsert` of `ConsentRecord` (consent rows may be deleted, as before). Raw
+  commands and direct database access bypass it; `verifyAuditChain` detects edits to the audit log.
+- **One slot per appointment.** `AvailabilitySlot.appointmentId` has no unique index (MongoDB
+  unique indexes are not sparse). Booking claims a slot with `updateMany where appointmentId: null`.
+- **Audit chain order.** Each chain has an `AuditHead` document (id = chain, last seq and hash)
+  that `recordAudit` advances in the same transaction as the new row. Concurrent writers conflict on
+  that document; MongoDB aborts the loser and `runTx` re-runs it. The `(chain, seq)` unique index is
+  the safety net.
 
 ## Non-negotiable invariants
 
@@ -66,7 +85,7 @@ against the stale shape.
 export async function doThing(actor: UserActor, id: string, input: Input): Promise<Result> {
   assertCan(actor, "case.manage");            // 1. permission
   const institutionId = tenantOf(actor);       // 2. tenant
-  return db.$transaction(async (tx) => {       // 3. one transaction per mutation
+  return runTx(async (tx) => {                 // 3. one transaction per mutation
     const row = await tx.case.findFirst({ where: { id, institutionId } });
     if (!row) fail("NOT_FOUND", "Case not found.");
     const t = now();                           // 4. time only from the clock
@@ -82,8 +101,12 @@ export async function doThing(actor: UserActor, id: string, input: Input): Promi
   replays weeks of history through these functions with the clock set.
 - **Errors:** `fail(code, message)` from `@/lib/errors` for expected refusals. Messages are complete,
   plain sentences that are safe to show to the user.
-- **Imports:** model types `import type { Case } from "@/generated/prisma/client"`, enums from
-  `@/generated/prisma/enums`, `db`/`DbLike` from `@/lib/db`.
+- **Imports:** model types and enums `import type { Case, Role } from "@prisma/client"`,
+  `db`/`DbLike`/`runTx` from `@/lib/db`.
+- **Transactions:** always `runTx(fn)`, never `db.$transaction` directly. It re-runs the whole
+  callback (up to 3 attempts) on a write conflict (P2034) or an audit-chain unique collision, so the
+  callback must be safe to run twice: keep side effects outside the database after it returns. Any
+  other unique violation (P2002) reaches the caller unchanged.
 - **Case history:** `logCaseEvent`, `markMilestone`, `ensureOpenCase`, `linkAlertToCase` from
   `services/cases.ts`. Milestones are the PRD D3 lifecycle: ACKNOWLEDGED, REVIEWED, CONTACTED,
   ARRANGED, REFERRED, APPOINTMENT_UPDATED, FOLLOW_UP_SCHEDULED, OUTCOME_DOCUMENTED.

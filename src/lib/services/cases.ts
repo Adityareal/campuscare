@@ -1,10 +1,10 @@
-import type { CaseSource, TriageCategory } from "@/generated/prisma/enums";
+import type { CaseSource, TriageCategory } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { decryptOptional, encryptField, encryptOptional, shortReference } from "@/lib/crypto";
-import { db, type DbLike } from "@/lib/db";
+import { db, runTx, type DbLike } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { CATEGORY_RANK } from "@/lib/risk/rules";
 import { notify } from "@/lib/services/notifications";
@@ -188,7 +188,7 @@ export async function listCases(actor: UserActor, filter: { status?: "OPEN_ANY" 
 
 export async function assignCase(actor: UserActor, caseId: string, assigneeId: string): Promise<void> {
   assertCan(actor, "case.manage");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await caseInTenant(tx, actor, caseId);
     const assignee = await tx.user.findFirst({
       where: { id: assigneeId, institutionId: c.institutionId, role: { in: ["COUNSELLOR", "CLINICIAN"] }, status: "ACTIVE" },
@@ -223,7 +223,7 @@ export async function recordCaseAction(
   note?: string | null,
 ): Promise<void> {
   assertCan(actor, "case.manage");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await caseInTenant(tx, actor, caseId);
     if (c.status === "CLOSED") fail("INVALID_TRANSITION", "Reopen the case before recording new actions.");
     await markMilestone(tx, caseId, milestone, actor.userId, ACTION_SUMMARY[milestone], note?.trim() || null);
@@ -236,7 +236,7 @@ export async function addCaseNote(actor: UserActor, caseId: string, note: string
   assertCan(actor, "case.manage");
   const text = note.trim();
   if (text.length < 3) fail("VALIDATION", "Write a note first.");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await caseInTenant(tx, actor, caseId);
     await logCaseEvent(tx, caseId, "NOTE", "Note added", actor.userId, text);
     await recordAudit(tx, actor, { action: "case.note", entityType: "Case", entityId: caseId });
@@ -247,7 +247,7 @@ export async function documentOutcome(actor: UserActor, caseId: string, note: st
   assertCan(actor, "case.manage");
   const text = note.trim();
   if (text.length < 10) fail("VALIDATION", "Describe the outcome in at least a sentence.");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await caseInTenant(tx, actor, caseId);
     if (c.status === "CLOSED") fail("INVALID_TRANSITION", "This case is closed.");
     const t = now();
@@ -264,7 +264,7 @@ export async function documentOutcome(actor: UserActor, caseId: string, note: st
  * still scheduled. A referral alone never closes a case (PRD D3). */
 export async function closeCase(actor: UserActor, caseId: string): Promise<void> {
   assertCan(actor, "case.manage");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await caseInTenant(tx, actor, caseId);
     if (c.status === "CLOSED") fail("INVALID_TRANSITION", "This case is already closed.");
     if (!c.outcomeDocumentedAt) fail("INVALID_TRANSITION", "Document the outcome before closing the case.");
@@ -282,7 +282,7 @@ export async function closeCase(actor: UserActor, caseId: string): Promise<void>
 export async function returnToMonitoring(actor: UserActor, caseId: string, nextReviewAt: Date): Promise<void> {
   assertCan(actor, "case.manage");
   if (!(nextReviewAt.getTime() > now().getTime())) fail("VALIDATION", "Choose a review date in the future.");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await caseInTenant(tx, actor, caseId);
     if (c.status === "CLOSED" || c.status === "MONITORING") fail("INVALID_TRANSITION", "Only an active case can return to monitoring.");
     if (!c.outcomeDocumentedAt) fail("INVALID_TRANSITION", "Document the outcome before returning the case to monitoring.");
@@ -312,7 +312,7 @@ export async function returnToMonitoring(actor: UserActor, caseId: string, nextR
 
 export async function reopenCase(actor: UserActor, caseId: string): Promise<void> {
   assertCan(actor, "case.manage");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await caseInTenant(tx, actor, caseId);
     if (c.status !== "CLOSED" && c.status !== "MONITORING") fail("INVALID_TRANSITION", "This case is already open.");
     await tx.case.update({ where: { id: caseId }, data: { status: "ACTIVE", closedAt: null, updatedAt: now() } });
@@ -324,7 +324,7 @@ export async function reopenCase(actor: UserActor, caseId: string): Promise<void
 /** False-negative review (PRD C6): marks a case that the rules should have flagged earlier. */
 export async function setMissedConcern(actor: UserActor, caseId: string, missed: boolean): Promise<void> {
   assertCan(actor, "case.manage");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await caseInTenant(tx, actor, caseId);
     await tx.case.update({ where: { id: caseId }, data: { missedConcern: missed, updatedAt: now() } });
     await logCaseEvent(tx, caseId, "NOTE", missed ? "Flagged for missed-concern review" : "Missed-concern flag removed", actor.userId);

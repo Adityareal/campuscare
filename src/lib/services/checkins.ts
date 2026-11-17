@@ -4,7 +4,7 @@ import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { decryptOptional, encryptOptional } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { evaluateAfterCommit } from "@/lib/services/access";
 import { hasConsent } from "@/lib/services/consent";
@@ -38,7 +38,7 @@ export async function submitCheckIn(actor: UserActor, raw: CheckInInput): Promis
   }
   if (!(await hasConsent(db, actor.userId, "CORE_PROCESSING"))) fail("CONSENT_REQUIRED", "Review your privacy choices first.");
 
-  const result = await db.$transaction(async (tx) => {
+  const result = await runTx(async (tx) => {
     const checkIn = await tx.checkIn.create({
       data: {
         institutionId,

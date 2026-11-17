@@ -2,7 +2,7 @@ import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { fmtDate, isoDay } from "@/lib/format";
 import {
@@ -219,7 +219,7 @@ export async function buildReport(actor: UserActor, input: { kind: ReportKind; p
   }
 
   const generatedAt = now();
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await recordAudit(tx, actor, {
       action: "report.generate",
       entityType: "Report",

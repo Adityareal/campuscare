@@ -1,10 +1,10 @@
-import type { Alert, AlertDecision, ReviewerFeedback, TriageCategory } from "@/generated/prisma/client";
+import type { Alert, AlertDecision, ReviewerFeedback, TriageCategory } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { decryptOptional, encryptOptional } from "@/lib/crypto";
-import { db, type DbLike } from "@/lib/db";
+import { db, runTx, type DbLike } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { CATEGORY_LEAD, RECOMMENDED_ACTION, type EvidenceRef } from "@/lib/risk/engine";
 import { CATEGORY_RANK, RULE_LABELS } from "@/lib/risk/rules";
@@ -279,7 +279,7 @@ export async function listCareTeam(actor: UserActor) {
 
 export async function acknowledgeAlert(actor: UserActor, alertId: string): Promise<void> {
   assertCan(actor, "alert.review");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     if (a.status !== "NEW") fail("INVALID_TRANSITION", "This alert has already been acknowledged.");
     const t = now();
@@ -308,7 +308,7 @@ export async function acknowledgeAlert(actor: UserActor, alertId: string): Promi
 
 export async function assignAlert(actor: UserActor, alertId: string, assigneeId: string): Promise<void> {
   assertCan(actor, "alert.review");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     if (a.status === "CLOSED") fail("INVALID_TRANSITION", "This alert is closed.");
     const assignee = await tx.user.findFirst({
@@ -337,7 +337,7 @@ export async function reviewAlert(actor: UserActor, alertId: string, input: Revi
   if (!(input.decision in DECISION_LABEL)) fail("VALIDATION", "Choose a decision.");
   if (input.feedback && !(input.feedback in FEEDBACK_LABEL)) fail("VALIDATION", "Choose valid feedback.");
   const note = input.note?.trim() ?? "";
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     if (a.status === "CLOSED") fail("INVALID_TRANSITION", "This alert is closed. Continue the work on the student's case.");
     const needsNote = a.category === "URGENT" || (input.decision === "NO_ACTION_NEEDED" && a.category === "PRIORITY");
@@ -390,7 +390,7 @@ export async function escalateAlert(actor: UserActor, alertId: string, reason: s
   assertCan(actor, "alert.review");
   const text = reason.trim();
   if (text.length < 10) fail("VALIDATION", "Say briefly why you are escalating.");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     if (a.status === "CLOSED") fail("INVALID_TRANSITION", "This alert is closed.");
     if (a.category === "URGENT") fail("INVALID_TRANSITION", "This alert is already urgent. Record escalation attempts instead.");
@@ -418,7 +418,7 @@ export async function recategorizeAlert(actor: UserActor, alertId: string, categ
   if (text.length < 10) fail("VALIDATION", "Explain the change in a sentence or two.");
   if (category === "ROUTINE") fail("VALIDATION", "Close the alert instead of setting it to routine.");
   if (category === "URGENT") fail("VALIDATION", "Use Escalate to make an alert urgent, so the crisis protocol starts.");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     if (a.status === "CLOSED") fail("INVALID_TRANSITION", "This alert is closed.");
     if (category === a.category) fail("VALIDATION", "The alert is already in that category.");
@@ -462,7 +462,7 @@ export async function recordEscalationAttempt(actor: UserActor, alertId: string,
   ) {
     fail("VALIDATION", "Choose who you tried to reach, how, and what happened.");
   }
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     if (a.status === "CLOSED") fail("INVALID_TRANSITION", "This alert is closed.");
     let targetUserId: string | null = null;
@@ -517,7 +517,7 @@ export async function recordEscalationAttempt(actor: UserActor, alertId: string,
  * escalation attempt recorded by a person and a written review note (PRD section 16). */
 export async function closeAlert(actor: UserActor, alertId: string): Promise<void> {
   assertCan(actor, "alert.review");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     if (a.status === "CLOSED") fail("INVALID_TRANSITION", "This alert is already closed.");
     if (a.status !== "REVIEWED" || !a.decision) fail("HUMAN_REVIEW_REQUIRED", "Record a review decision before closing the alert.");
@@ -539,7 +539,7 @@ export async function closeAlert(actor: UserActor, alertId: string): Promise<voi
 
 export async function openCaseFromAlert(actor: UserActor, alertId: string): Promise<string> {
   assertCan(actor, "case.manage");
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const a = await alertInTenant(tx, actor, alertId);
     const caseId = await ensureCaseForAlert(tx, actor, a, `Case linked to alert ${a.reference}`);
     await logAlertEvent(tx, a.id, "CASE_LINKED", actor.userId);

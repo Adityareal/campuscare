@@ -8,7 +8,7 @@ import {
   WarningIcon,
   WarningOctagonIcon,
 } from "@phosphor-icons/react/dist/ssr";
-import type { TriageCategory } from "@/generated/prisma/enums";
+import type { TriageCategory } from "@prisma/client";
 import { fmtDateTime } from "@/lib/format";
 import { buttonClass, cx, inputClass, panelClass, tableCell, tableHeadCell, type ButtonSize, type ButtonVariant } from "@/components/ui/classes";
 

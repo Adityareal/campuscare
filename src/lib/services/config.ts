@@ -1,4 +1,4 @@
-import type { TriageCategory } from "@/generated/prisma/enums";
+import type { TriageCategory } from "@prisma/client";
 import type { DbLike } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { parseRules, type RiskRules } from "@/lib/risk/rules";

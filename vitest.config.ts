@@ -8,9 +8,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
-    // Integration tests each open an in-memory PGlite instance; keep them in one worker
-    // so the host is not asked for several WASM Postgres heaps at once.
-    fileParallelism: false,
+    // One in-memory MongoDB replica set for the run; each integration file uses its own database.
+    globalSetup: ["src/test/global-setup.ts"],
     testTimeout: 30_000,
     hookTimeout: 60_000,
   },

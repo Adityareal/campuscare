@@ -1,4 +1,4 @@
-import type { TriageCategory } from "@/generated/prisma/enums";
+import type { TriageCategory } from "@prisma/client";
 import { BAND_LABEL, PHQ9, scoreInstrument, type ScoreResult } from "@/lib/instruments";
 import {
   alertTitle,

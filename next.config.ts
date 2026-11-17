@@ -20,8 +20,6 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  // PGlite ships a WASM Postgres build that must be loaded by Node at runtime, not bundled.
-  serverExternalPackages: ["@electric-sql/pglite", "pglite-prisma-adapter"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

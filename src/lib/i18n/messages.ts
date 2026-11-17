@@ -1,4 +1,4 @@
-import type { Locale, Role } from "@/generated/prisma/enums";
+import type { Locale, Role } from "@prisma/client";
 
 type MessagesStrings = {
   intro: string;

@@ -1,9 +1,9 @@
-import type { Instrument, Locale } from "@/generated/prisma/enums";
+import type { Instrument, Locale } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { DAY, now } from "@/lib/clock";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { instrumentFor, maxScore, scoreInstrument, type SeverityBand } from "@/lib/instruments";
 import { evaluateAfterCommit, studentInTenant } from "@/lib/services/access";
@@ -36,7 +36,7 @@ export async function requestAssessment(actor: UserActor, studentId: string, ins
   assertCan(actor, "assessment.request");
   const student = await studentInTenant(db, actor, studentId);
   const def = instrumentFor(instrument);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const existing = await tx.assessment.findFirst({ where: { studentId, institutionId: student.institutionId!, instrument, status: "ASSIGNED" } });
     const a =
       existing ??
@@ -97,7 +97,7 @@ export async function submitAssessment(
   const score = scoreInstrument(def, responses, functionalDifficulty);
   const displayed: Locale = def.validatedLocales.includes(actor.locale) ? actor.locale : "en";
 
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const t = now();
     // Compare-and-swap so a double submit cannot store two score sets.
     const claimed = await tx.assessment.updateMany({

@@ -1,6 +1,6 @@
 import "@/test/env";
 import { describe, expect, it } from "vitest";
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 import { systemActor, type UserActor } from "@/lib/actor";
 import { assertCan, can, permissionsFor, roleCan, tenantOf, type Permission } from "@/lib/auth/permissions";
 import { expectDomainErrorSync } from "@/test/expect";

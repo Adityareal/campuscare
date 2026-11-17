@@ -1,4 +1,4 @@
-import type { Locale } from "@/generated/prisma/enums";
+import type { Locale } from "@prisma/client";
 
 /**
  * Copy for the public access pages (sign-in, second step, registration) and the notification

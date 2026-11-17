@@ -20,11 +20,24 @@ type Row = {
   hash: string;
 };
 
-/** The few AuditLog operations recordAudit and verifyAuditChain use, backed by an array. */
+/** The few AuditLog and AuditHead operations recordAudit and verifyAuditChain use, backed by memory. */
 function fakeClient(rows: Row[] = []) {
   const bySeq = (a: Row, b: Row) => a.seq - b.seq;
+  const heads = new Map<string, { id: string; seq: number; hash: string }>();
   const client = {
-    $executeRaw: async () => 1,
+    auditHead: {
+      findUnique: async ({ where }: { where: { id: string } }) => heads.get(where.id) ?? null,
+      create: async ({ data }: { data: { id: string; seq: number; hash: string } }) => {
+        heads.set(data.id, { ...data });
+        return data;
+      },
+      updateMany: async ({ where, data }: { where: { id: string; seq: number }; data: { seq: number; hash: string } }) => {
+        const head = heads.get(where.id);
+        if (!head || head.seq !== where.seq) return { count: 0 };
+        Object.assign(head, data);
+        return { count: 1 };
+      },
+    },
     auditLog: {
       findFirst: async ({ where }: { where: { chain: string } }) => {
         const last = rows.filter((r) => r.chain === where.chain).sort(bySeq).at(-1);
@@ -38,7 +51,7 @@ function fakeClient(rows: Row[] = []) {
       },
     },
   };
-  return { rows, client: client as unknown as DbLike };
+  return { rows, heads, client: client as unknown as DbLike };
 }
 
 const counsellor: UserActor = { kind: "user", userId: "u1", role: "COUNSELLOR", institutionId: "inst-1", name: "Asha", locale: "en" };
@@ -94,6 +107,14 @@ describe("recordAudit and verifyAuditChain", () => {
 
     expect(await verifyAuditChain(client, "inst-1")).toEqual({ ok: true, checked: 2, brokenAtSeq: null });
     expect(await verifyAuditChain(client, "platform")).toEqual({ ok: true, checked: 1, brokenAtSeq: null });
+  });
+
+  it("keeps the chain head in step with the last row", async () => {
+    setClock(new Date("2026-11-15T06:00:00.000Z"));
+    const { rows, heads, client } = fakeClient();
+    await recordAudit(client, counsellor, { action: "case.view", entityType: "Case" });
+    await recordAudit(client, counsellor, { action: "case.view", entityType: "Case" });
+    expect(heads.get("inst-1")).toEqual({ id: "inst-1", seq: 2, hash: rows[1]?.hash });
   });
 
   it("an empty chain verifies", async () => {

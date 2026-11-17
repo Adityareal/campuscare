@@ -1,4 +1,4 @@
-import { db as rootDb, getDb, type DbLike } from "@/lib/db";
+import { db as rootDb, getDb, runTx, type DbLike } from "@/lib/db";
 import { actorId, actorRole, type Actor } from "@/lib/actor";
 import { now } from "@/lib/clock";
 import { sha256, stableStringify } from "@/lib/crypto";
@@ -35,11 +35,11 @@ export function computeAuditHash(f: HashFields): string {
 }
 
 export async function recordAudit(client: DbLike, actor: Actor, input: AuditInput): Promise<void> {
-  // The per-chain lock below only holds inside a transaction. Writes through the root client
+  // The chain head is only safe to advance inside a transaction. Writes through the root client
   // get their own transaction; writes through a transaction client join the caller's.
-  // (Prisma 7 transaction clients also expose $transaction, so identity is the reliable test.)
+  // (Transaction clients may also expose $transaction, so identity is the reliable test.)
   if (client === rootDb || client === getDb()) {
-    await rootDb.$transaction((tx) => appendAudit(tx, actor, input));
+    await runTx((tx) => appendAudit(tx, actor, input));
     return;
   }
   await appendAudit(client, actor, input);
@@ -47,13 +47,11 @@ export async function recordAudit(client: DbLike, actor: Actor, input: AuditInpu
 
 async function appendAudit(client: DbLike, actor: Actor, input: AuditInput): Promise<void> {
   const chain = input.institutionId ?? actor.institutionId ?? "platform";
-  // Serialise writers per chain so two concurrent entries cannot share a predecessor.
-  await client.$executeRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${chain}))) AS chain_lock`;
-  const last = await client.auditLog.findFirst({
-    where: { chain },
-    orderBy: { seq: "desc" },
-    select: { seq: true, hash: true },
-  });
+  // The AuditHead document of a chain is read and advanced in the same transaction as the row it
+  // points at. Two concurrent writers both update the head, MongoDB aborts the second as a write
+  // conflict, and runTx re-runs it. The unique (chain, seq) index is the safety net behind that.
+  const head = await client.auditHead.findUnique({ where: { id: chain } });
+  const last = head ?? (await client.auditLog.findFirst({ where: { chain }, orderBy: { seq: "desc" }, select: { seq: true, hash: true } }));
   const fields: HashFields = {
     chain,
     seq: (last?.seq ?? 0) + 1,
@@ -66,20 +64,27 @@ async function appendAudit(client: DbLike, actor: Actor, input: AuditInput): Pro
     createdAt: now().toISOString(),
     prevHash: last?.hash ?? AUDIT_GENESIS,
   };
+  const hash = computeAuditHash(fields);
   await client.auditLog.create({
     data: {
       ...fields,
       metadata: fields.metadata ?? undefined,
       createdAt: new Date(fields.createdAt),
-      hash: computeAuditHash(fields),
+      hash,
     },
   });
+  if (head) {
+    const moved = await client.auditHead.updateMany({ where: { id: chain, seq: head.seq }, data: { seq: fields.seq, hash } });
+    if (moved.count !== 1) throw new Error(`Audit chain ${chain} moved while appending; the transaction must be retried.`);
+  } else {
+    await client.auditHead.create({ data: { id: chain, seq: fields.seq, hash } });
+  }
 }
 
 export type ChainVerification = { ok: boolean; checked: number; brokenAtSeq: number | null };
 
 /** Recomputes every hash in a chain. Detects edits made by anyone who bypassed the
- * append-only trigger (for example with superuser access to the database). */
+ * append-only guard (for example with superuser access to the database). */
 export async function verifyAuditChain(client: DbLike, chain: string): Promise<ChainVerification> {
   const rows = await client.auditLog.findMany({ where: { chain }, orderBy: { seq: "asc" } });
   let prevHash = AUDIT_GENESIS;

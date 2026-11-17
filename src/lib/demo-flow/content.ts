@@ -1,4 +1,4 @@
-import type { AlertDecision, ReviewerFeedback, TriageCategory } from "@/generated/prisma/enums";
+import type { AlertDecision, ReviewerFeedback, TriageCategory } from "@prisma/client";
 import { en } from "@/lib/i18n/en";
 
 /**

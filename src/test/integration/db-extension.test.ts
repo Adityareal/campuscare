@@ -2,7 +2,7 @@ import "@/test/env";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { recordAudit, verifyAuditChain } from "@/lib/audit";
 import { systemActor } from "@/lib/actor";
-import { runTx } from "@/lib/db";
+import { MAX_ATTEMPTS, runTx } from "@/lib/db";
 import { createTestDb, type TestDb } from "@/test/db";
 
 let t: TestDb;
@@ -39,29 +39,36 @@ describe("append-only extension", () => {
 });
 
 describe("runTx on a real replica set", () => {
-  it("re-runs a transaction that lost a write conflict, and concurrent audit appends keep one chain", async () => {
-    const actor = systemActor("seed", "inst-y");
+  it("re-runs a transaction that lost a forced write conflict", async () => {
+    const inst = await t.db.institution.create({ data: { name: "Before", slug: "conflict", city: "c", emailDomain: "d" } });
     let attempts = 0;
-    const results = await Promise.all(
-      Array.from({ length: 3 }, (_, i) =>
-        runTx((tx) => {
-          attempts += 1;
-          return recordAudit(tx, actor, { action: `n.${i}`, entityType: "T" });
-        }, t.db),
-      ),
-    );
-    expect(results).toHaveLength(3);
-    expect(attempts).toBeGreaterThan(3); // at least one transaction lost a conflict and was re-run
-    expect(await verifyAuditChain(t.db, "inst-y")).toEqual({ ok: true, checked: 3, brokenAtSeq: null });
-    expect((await t.db.auditHead.findUniqueOrThrow({ where: { id: "inst-y" } })).seq).toBe(3);
+    await runTx(async (tx) => {
+      attempts += 1;
+      // Read inside the transaction so its snapshot is fixed, then change the same document
+      // outside it (first attempt only). The transaction's own write then conflicts: P2034.
+      await tx.institution.findUniqueOrThrow({ where: { id: inst.id } });
+      if (attempts === 1) await t.db.institution.update({ where: { id: inst.id }, data: { city: "outside" } });
+      await tx.institution.update({ where: { id: inst.id }, data: { name: "Inside" } });
+    }, t.db);
+    expect(attempts).toBe(2);
+    expect(await t.db.institution.findUniqueOrThrow({ where: { id: inst.id } })).toMatchObject({ name: "Inside", city: "outside" });
   });
 
+  it("10 concurrent appends on one chain all succeed and the chain verifies", async () => {
+    const actor = systemActor("seed", "inst-y");
+    await Promise.all(Array.from({ length: 10 }, (_, i) => recordAudit(t.db, actor, { action: `n.${i}`, entityType: "T" })));
+    const rows = await t.db.auditLog.findMany({ where: { chain: "inst-y" }, orderBy: { seq: "asc" } });
+    expect(rows.map((r) => r.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(new Set(rows.map((r) => r.action)).size).toBe(10);
+    expect(await verifyAuditChain(t.db, "inst-y")).toEqual({ ok: true, checked: 10, brokenAtSeq: null });
+    expect(await t.db.auditHead.findUniqueOrThrow({ where: { id: "inst-y" } })).toMatchObject({ seq: 10, hash: rows[9]?.hash });
+  });
   it("retries a real (chain, seq) unique violation, but not a duplicate on another model", async () => {
     const base = { chain: "inst-z", seq: 1, action: "a", entityType: "T", prevHash: "p" };
     await t.db.auditLog.create({ data: { ...base, hash: "h1" } });
     let audit = 0;
     await expect(runTx(async (tx) => { audit += 1; await tx.auditLog.create({ data: { ...base, hash: "h2" } }); }, t.db)).rejects.toMatchObject({ code: "P2002" });
-    expect(audit).toBe(3);
+    expect(audit).toBe(MAX_ATTEMPTS);
 
     await t.db.institution.create({ data: { name: "A", slug: "dup", city: "c", emailDomain: "d" } });
     let other = 0;

@@ -79,7 +79,19 @@ export const db: Db = new Proxy({} as Db, {
 
 // ---------- Transactions ----------
 
-const MAX_ATTEMPTS = 3;
+/** Attempts per transaction, and the backoff between them: exponential from 20 ms, capped at
+ * 1 s, with full jitter so writers that collided once spread out instead of colliding again.
+ * Worst-case total wait across all 7 retries is 2.26 s. */
+export const MAX_ATTEMPTS = 8;
+const BACKOFF_BASE_MS = 20;
+const BACKOFF_CAP_MS = 1000;
+
+/** Delay before attempt `attempt + 1`: a random point in [0, min(cap, base * 2^(attempt-1))]. */
+export function retryDelayMs(attempt: number, random: () => number = Math.random): number {
+  return Math.round(random() * Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** (attempt - 1)));
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** A transaction lost a write conflict. MongoDB aborts the loser, so the whole thing is re-run. */
 function isWriteConflict(error: unknown): boolean {
@@ -95,9 +107,10 @@ function isAuditChainCollision(error: unknown): boolean {
 }
 
 /**
- * Runs an interactive transaction and re-runs the whole callback, up to 3 attempts, when it
- * lost a write conflict (P2034) or collided on the audit chain. The callback must therefore be
- * safe to run again: keep side effects outside the database in the caller, after it returns.
+ * Runs an interactive transaction and re-runs the whole callback, up to MAX_ATTEMPTS times with
+ * jittered exponential backoff, when it lost a write conflict (P2034) or collided on the audit
+ * chain. Any other error is thrown at once. The callback must therefore be safe to run again:
+ * keep side effects outside the database in the caller, after it returns.
  */
 export async function runTx<R>(fn: (tx: Tx) => Promise<R>, client: Db = getDb()): Promise<R> {
   for (let attempt = 1; ; attempt += 1) {
@@ -105,6 +118,7 @@ export async function runTx<R>(fn: (tx: Tx) => Promise<R>, client: Db = getDb())
       return await client.$transaction((tx) => fn(tx as Tx));
     } catch (error) {
       if (attempt >= MAX_ATTEMPTS || !(isWriteConflict(error) || isAuditChainCollision(error))) throw error;
+      await sleep(retryDelayMs(attempt));
     }
   }
 }

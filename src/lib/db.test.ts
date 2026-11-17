@@ -1,7 +1,7 @@
 import "@/test/env";
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
-import { runTx, type Db } from "@/lib/db";
+import { MAX_ATTEMPTS, retryDelayMs, runTx, type Db } from "@/lib/db";
 
 function knownError(code: string, message = "boom", meta?: Record<string, unknown>) {
   return new Prisma.PrismaClientKnownRequestError(message, { code, clientVersion: "test", meta });
@@ -28,10 +28,16 @@ describe("runTx", () => {
     expect(calls()).toBe(2);
   });
 
-  it("gives up after 3 attempts", async () => {
-    const { client, calls } = clientFailing([knownError("P2034"), knownError("P2034"), knownError("P2034"), knownError("P2034")]);
+  it("gives up after MAX_ATTEMPTS attempts", async () => {
+    const { client, calls } = clientFailing(Array.from({ length: MAX_ATTEMPTS + 1 }, () => knownError("P2034")));
     await expect(runTx(async () => "ok", client)).rejects.toMatchObject({ code: "P2034" });
-    expect(calls()).toBe(3);
+    expect(calls()).toBe(MAX_ATTEMPTS);
+  });
+
+  it("backs off exponentially from 20 ms, capped at 1 s, with full jitter", () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((n) => retryDelayMs(n, () => 1))).toEqual([20, 40, 80, 160, 320, 640, 1000, 1000]);
+    expect(retryDelayMs(5, () => 0)).toBe(0);
+    expect(retryDelayMs(5, () => 0.5)).toBe(160);
   });
 
   it("retries a unique violation on the audit chain", async () => {

@@ -1,4 +1,4 @@
-﻿# dependencies
+# dependencies
 node_modules/
 
 # next.js
@@ -7,9 +7,8 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 
-# local database (PGlite data directory) and generated client
+# old local PGlite data folder: no longer used, never commit it
 .pglite/
-src/generated/
 
 # env files: only the documented template is committed
 .env

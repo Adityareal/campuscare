@@ -3,16 +3,17 @@
 // Tenancy: every tenant-owned row carries institutionId, and every service query filters on
 // the caller's institution. Sensitive free text (check-in notes, help request details,
 // messages, clinical notes, review notes) is stored as AES-256-GCM ciphertext, never as
-// plain text. AuditLog is append-only: a trigger in the migration rejects UPDATE, DELETE
-// and TRUNCATE, and each row is hash-chained to the previous row of the same chain.
+// plain text. AuditLog is append-only: the Prisma client extension in src/lib/db.ts rejects
+// update and delete operations (MongoDB has no triggers), and each row is hash-chained to the previous row of the same chain.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 // ---------- Identity and tenancy ----------
@@ -37,7 +38,7 @@ enum UserStatus {
 }
 
 model Institution {
-  id          String   @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   name        String
   slug        String   @unique
   city        String
@@ -51,7 +52,7 @@ model Institution {
 }
 
 model Department {
-  id            String      @id @default(cuid())
+  id            String      @id @default(cuid()) @map("_id")
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id])
   code          String
@@ -63,24 +64,24 @@ model Department {
 }
 
 model User {
-  id            String       @id @default(cuid())
-  institutionId String?
-  institution   Institution? @relation(fields: [institutionId], references: [id])
-  email         String       @unique
-  name          String
-  role          Role
-  status        UserStatus   @default(ACTIVE)
-  passwordHash  String?
-  locale        Locale       @default(en)
-  isDemo        Boolean      @default(false)
-  failedLogins  Int          @default(0)
-  lockedUntil   DateTime?
-  lastLoginAt   DateTime?
+  id             String       @id @default(cuid()) @map("_id")
+  institutionId  String?
+  institution    Institution? @relation(fields: [institutionId], references: [id])
+  email          String       @unique
+  name           String
+  role           Role
+  status         UserStatus   @default(ACTIVE)
+  passwordHash   String?
+  locale         Locale       @default(en)
+  isDemo         Boolean      @default(false)
+  failedLogins   Int          @default(0)
+  lockedUntil    DateTime?
+  lastLoginAt    DateTime?
   // TOTP second factor for staff. The secret is encrypted; mfaLastCounter blocks code replay.
   mfaSecretCt    String?
   mfaEnabledAt   DateTime?
   mfaLastCounter Int?
-  createdAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
 
   sessions       Session[]
   accessTokens   AccessToken[]
@@ -88,20 +89,20 @@ model User {
   professional   ProfessionalProfile?
   consents       ConsentRecord[]
   notifications  Notification[]
-  checkIns       CheckIn[]       @relation("StudentCheckIns")
-  assessments    Assessment[]    @relation("StudentAssessments")
-  alerts         Alert[]         @relation("StudentAlerts")
-  assignedAlerts Alert[]         @relation("AlertAssignee")
-  cases          Case[]          @relation("StudentCases")
+  checkIns       CheckIn[]            @relation("StudentCheckIns")
+  assessments    Assessment[]         @relation("StudentAssessments")
+  alerts         Alert[]              @relation("StudentAlerts")
+  assignedAlerts Alert[]              @relation("AlertAssignee")
+  cases          Case[]               @relation("StudentCases")
   slots          AvailabilitySlot[]
-  appointments   Appointment[]   @relation("StudentAppointments")
-  consultations  Appointment[]   @relation("ProfessionalAppointments")
+  appointments   Appointment[]        @relation("StudentAppointments")
+  consultations  Appointment[]        @relation("ProfessionalAppointments")
 
   @@index([institutionId, role])
 }
 
 model Session {
-  id         String   @id @default(cuid())
+  id         String   @id @default(cuid()) @map("_id")
   tokenHash  String   @unique
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -117,7 +118,7 @@ model Session {
 
 // One-time links for setting a password (new staff accounts, access resets).
 model AccessToken {
-  id        String    @id @default(cuid())
+  id        String    @id @default(cuid()) @map("_id")
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String    @unique
@@ -130,7 +131,7 @@ model AccessToken {
 }
 
 model StudentProfile {
-  id            String     @id @default(cuid())
+  id            String     @id @default(cuid()) @map("_id")
   userId        String     @unique
   user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   institutionId String
@@ -143,6 +144,7 @@ model StudentProfile {
 
   @@unique([institutionId, studentNumber])
   @@index([institutionId, departmentId])
+  @@index([departmentId])
 }
 
 enum Profession {
@@ -159,7 +161,7 @@ enum VerificationStatus {
 }
 
 model ProfessionalProfile {
-  id                 String             @id @default(cuid())
+  id                 String             @id @default(cuid()) @map("_id")
   userId             String             @unique
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   institutionId      String
@@ -174,10 +176,12 @@ model ProfessionalProfile {
   feeInr             Int                @default(0)
   bio                String
   offersVideo        Boolean            @default(true)
+
+  @@index([institutionId])
 }
 
 model InviteCode {
-  id            String      @id @default(cuid())
+  id            String      @id @default(cuid()) @map("_id")
   code          String      @unique
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id])
@@ -186,6 +190,8 @@ model InviteCode {
   maxUses       Int
   uses          Int         @default(0)
   createdAt     DateTime    @default(now())
+
+  @@index([institutionId])
 }
 
 enum CheckInCadence {
@@ -194,22 +200,22 @@ enum CheckInCadence {
 }
 
 model InstitutionConfiguration {
-  id                 String         @id @default(cuid())
-  institutionId      String         @unique
-  institution        Institution    @relation(fields: [institutionId], references: [id])
-  checkInCadence     CheckInCadence @default(WEEKLY)
-  minCohortSize      Int            @default(10)
-  careTeamHours      String
-  crisisContacts     Json
-  onCallResponderId  String?
-  urgentAckMinutes   Int            @default(15)
-  priorityAckHours   Int            @default(24)
-  monitorAckHours    Int            @default(72)
-  retentionMonths    Int            @default(36)
-  riskRules          Json
-  riskRulesVersion   Int            @default(1)
-  updatedAt          DateTime       @updatedAt
-  updatedById        String?
+  id                String         @id @default(cuid()) @map("_id")
+  institutionId     String         @unique
+  institution       Institution    @relation(fields: [institutionId], references: [id])
+  checkInCadence    CheckInCadence @default(WEEKLY)
+  minCohortSize     Int            @default(10)
+  careTeamHours     String
+  crisisContacts    Json
+  onCallResponderId String?
+  urgentAckMinutes  Int            @default(15)
+  priorityAckHours  Int            @default(24)
+  monitorAckHours   Int            @default(72)
+  retentionMonths   Int            @default(36)
+  riskRules         Json
+  riskRulesVersion  Int            @default(1)
+  updatedAt         DateTime       @updatedAt
+  updatedById       String?
 }
 
 // ---------- Consent ----------
@@ -226,7 +232,7 @@ enum ConsentDecision {
 }
 
 model ConsentPolicy {
-  id          String   @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   version     String   @unique
   effectiveAt DateTime
   contentHash String
@@ -237,7 +243,7 @@ model ConsentPolicy {
 
 // Append-only: each grant or withdrawal is a new row. Current state is the latest row per scope.
 model ConsentRecord {
-  id            String          @id @default(cuid())
+  id            String          @id @default(cuid()) @map("_id")
   userId        String
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   institutionId String
@@ -250,6 +256,7 @@ model ConsentRecord {
   recordedAt    DateTime        @default(now())
 
   @@index([userId, scope, recordedAt])
+  @@index([policyVersion])
 }
 
 // ---------- Check-ins and assessments ----------
@@ -261,7 +268,7 @@ enum WantsToTalk {
 }
 
 model CheckIn {
-  id               String       @id @default(cuid())
+  id               String       @id @default(cuid()) @map("_id")
   institutionId    String
   studentId        String
   student          User         @relation("StudentCheckIns", fields: [studentId], references: [id], onDelete: Cascade)
@@ -297,19 +304,19 @@ enum AssessmentSource {
 }
 
 model Assessment {
-  id                String             @id @default(cuid())
+  id                String           @id @default(cuid()) @map("_id")
   institutionId     String
   studentId         String
-  student           User               @relation("StudentAssessments", fields: [studentId], references: [id], onDelete: Cascade)
+  student           User             @relation("StudentAssessments", fields: [studentId], references: [id], onDelete: Cascade)
   instrument        Instrument
   instrumentVersion String
-  status            AssessmentStatus   @default(ASSIGNED)
+  status            AssessmentStatus @default(ASSIGNED)
   source            AssessmentSource
   requestedById     String?
-  assignedAt        DateTime           @default(now())
+  assignedAt        DateTime         @default(now())
   dueAt             DateTime?
   completedAt       DateTime?
-  requestedLocale   Locale             @default(en)
+  requestedLocale   Locale           @default(en)
   displayedLocale   Locale?
 
   responses AssessmentResponse[]
@@ -319,7 +326,7 @@ model Assessment {
 }
 
 model AssessmentResponse {
-  id           String     @id @default(cuid())
+  id           String     @id @default(cuid()) @map("_id")
   assessmentId String
   assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   itemNumber   Int
@@ -329,7 +336,7 @@ model AssessmentResponse {
 }
 
 model AssessmentScore {
-  id                   String     @id @default(cuid())
+  id                   String     @id @default(cuid()) @map("_id")
   assessmentId         String     @unique
   assessment           Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   total                Int
@@ -371,7 +378,7 @@ enum ReviewerFeedback {
 }
 
 model Alert {
-  id                String            @id @default(cuid())
+  id                String            @id @default(cuid()) @map("_id")
   institutionId     String
   reference         String            @unique
   studentId         String
@@ -402,10 +409,12 @@ model Alert {
 
   @@index([institutionId, status, category])
   @@index([institutionId, studentId])
+  @@index([studentId])
+  @@index([assignedToId])
 }
 
 model RiskIndicator {
-  id            String         @id @default(cuid())
+  id            String         @id @default(cuid()) @map("_id")
   institutionId String
   studentId     String
   alertId       String
@@ -423,10 +432,11 @@ model RiskIndicator {
 
   @@index([institutionId, studentId, ruleCode])
   @@index([studentId, dedupeKey])
+  @@index([alertId])
 }
 
 model AlertEvent {
-  id           String          @id @default(cuid())
+  id           String          @id @default(cuid()) @map("_id")
   alertId      String
   alert        Alert           @relation(fields: [alertId], references: [id], onDelete: Cascade)
   actorId      String?
@@ -444,7 +454,7 @@ model AlertEvent {
 // One attempt to reach someone under the crisis protocol: an on-call responder (targetUserId),
 // the student, or an outside service (targetLabel).
 model EscalationAttempt {
-  id             String    @id @default(cuid())
+  id             String    @id @default(cuid()) @map("_id")
   alertId        String
   alert          Alert     @relation(fields: [alertId], references: [id], onDelete: Cascade)
   targetUserId   String?
@@ -471,7 +481,7 @@ enum HelpRequestType {
 }
 
 model HelpRequest {
-  id            String          @id @default(cuid())
+  id            String          @id @default(cuid()) @map("_id")
   institutionId String
   studentId     String
   type          HelpRequestType
@@ -482,6 +492,7 @@ model HelpRequest {
   case          Case?           @relation(fields: [caseId], references: [id])
 
   @@index([institutionId, studentId, createdAt])
+  @@index([caseId])
 }
 
 enum CaseStatus {
@@ -498,7 +509,7 @@ enum CaseSource {
 }
 
 model Case {
-  id                     String         @id @default(cuid())
+  id                     String         @id @default(cuid()) @map("_id")
   institutionId          String
   reference              String         @unique
   studentId              String
@@ -535,7 +546,7 @@ model Case {
 }
 
 model CaseAssignment {
-  id           String    @id @default(cuid())
+  id           String    @id @default(cuid()) @map("_id")
   caseId       String
   case         Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
   userId       String
@@ -544,20 +555,23 @@ model CaseAssignment {
   endedAt      DateTime?
 
   @@index([userId, endedAt])
+  @@index([caseId])
 }
 
 model CaseAlert {
+  id       String   @id @default(cuid()) @map("_id")
   caseId   String
   case     Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   alertId  String
   alert    Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
   linkedAt DateTime @default(now())
 
-  @@id([caseId, alertId])
+  @@unique([caseId, alertId])
+  @@index([alertId])
 }
 
 model CaseEvent {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   caseId    String
   case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   actorId   String?
@@ -589,7 +603,7 @@ enum ReferralStatus {
 }
 
 model Referral {
-  id             String          @id @default(cuid())
+  id             String          @id @default(cuid()) @map("_id")
   institutionId  String
   caseId         String
   case           Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -605,6 +619,7 @@ model Referral {
   appointments Appointment[]
 
   @@index([institutionId, studentId, status])
+  @@index([caseId])
 }
 
 enum SlotStatus {
@@ -619,7 +634,7 @@ enum ConsultationMode {
 }
 
 model AvailabilitySlot {
-  id             String           @id @default(cuid())
+  id             String           @id @default(cuid()) @map("_id")
   institutionId  String
   professionalId String
   professional   User             @relation(fields: [professionalId], references: [id], onDelete: Cascade)
@@ -627,10 +642,11 @@ model AvailabilitySlot {
   endsAt         DateTime
   mode           ConsultationMode @default(VIDEO)
   status         SlotStatus       @default(OPEN)
-  appointmentId  String?          @unique
+  appointmentId  String?
 
   @@unique([professionalId, startsAt])
   @@index([institutionId, status, startsAt])
+  @@index([appointmentId])
 }
 
 enum AppointmentStatus {
@@ -641,7 +657,7 @@ enum AppointmentStatus {
 }
 
 model Appointment {
-  id                String            @id @default(cuid())
+  id                String            @id @default(cuid()) @map("_id")
   institutionId     String
   studentId         String
   student           User              @relation("StudentAppointments", fields: [studentId], references: [id], onDelete: Cascade)
@@ -666,27 +682,31 @@ model Appointment {
 
   @@index([institutionId, studentId, startsAt])
   @@index([institutionId, professionalId, startsAt])
+  @@index([studentId])
+  @@index([professionalId])
+  @@index([referralId])
+  @@index([slotId])
 }
 
 model Consultation {
-  id                String    @id @default(cuid())
-  appointmentId     String    @unique
+  id                String      @id @default(cuid()) @map("_id")
+  appointmentId     String      @unique
   appointment       Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   institutionId     String
   provider          String
   roomName          String
-  status            String    @default("WAITING")
+  status            String      @default("WAITING")
   studentJoinedAt   DateTime?
   clinicianJoinedAt DateTime?
   startedAt         DateTime?
   endedAt           DateTime?
-  recordingEnabled  Boolean   @default(false)
+  recordingEnabled  Boolean     @default(false)
 
   notes ClinicalNote[]
 }
 
 model ClinicalNote {
-  id             String        @id @default(cuid())
+  id             String        @id @default(cuid()) @map("_id")
   institutionId  String
   studentId      String
   authorId       String
@@ -698,6 +718,7 @@ model ClinicalNote {
   createdAt      DateTime      @default(now())
 
   @@index([institutionId, studentId, createdAt])
+  @@index([consultationId])
 }
 
 enum FollowUpStatus {
@@ -708,7 +729,7 @@ enum FollowUpStatus {
 }
 
 model FollowUp {
-  id            String         @id @default(cuid())
+  id            String         @id @default(cuid()) @map("_id")
   institutionId String
   caseId        String?
   case          Case?          @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -726,10 +747,12 @@ model FollowUp {
   createdAt     DateTime       @default(now())
 
   @@index([institutionId, assignedToId, status, dueAt])
+  @@index([caseId])
+  @@index([appointmentId])
 }
 
 model Message {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   institutionId String
   caseId        String
   case          Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -744,7 +767,7 @@ model Message {
 // Notification copy is resolved from `template` at render time, so stored rows never carry
 // mental-health details that could leak through lock-screen previews or email subjects.
 model Notification {
-  id            String    @id @default(cuid())
+  id            String    @id @default(cuid()) @map("_id")
   institutionId String?
   userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -760,7 +783,7 @@ model Notification {
 // ---------- Audit ----------
 
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String   @id @default(cuid()) @map("_id")
   chain      String
   seq        Int
   actorId    String?
@@ -775,4 +798,12 @@ model AuditLog {
 
   @@unique([chain, seq])
   @@index([chain, createdAt])
+}
+
+// Head of each audit hash chain (id = chain). Updated in the same transaction as the AuditLog
+// row it points at, which serialises writers per chain without a database lock.
+model AuditHead {
+  id   String @id @map("_id")
+  seq  Int
+  hash String
 }

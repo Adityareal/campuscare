@@ -24,3 +24,7 @@ Thumbs.db
 
 # local screenshots from verification runs
 .screenshots/
+
+# Vercel link folder and local deploy scratch
+.vercel/
+.deploy/

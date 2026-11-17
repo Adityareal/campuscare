@@ -1,12 +1,12 @@
 import { randomInt } from "node:crypto";
 import { z } from "zod";
-import type { Profession, Role, UserStatus, VerificationStatus } from "@/generated/prisma/enums";
+import type { Profession, Role, UserStatus, VerificationStatus } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit, verifyAuditChain, type AuditMetadata, type ChainVerification } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { DAY, HOUR, now } from "@/lib/clock";
 import { randomToken, sha256 } from "@/lib/crypto";
-import { db, type DbLike } from "@/lib/db";
+import { db, runTx, type DbLike } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import type { CrisisContact } from "@/lib/services/config";
 
@@ -211,7 +211,7 @@ export async function inviteStaff(actor: UserActor, input: InviteStaffInput): Pr
   if (data.professional && data.role !== "COUNSELLOR" && data.role !== "CLINICIAN") {
     fail("VALIDATION", "A professional profile can only be added for counsellors and clinicians.");
   }
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     await assertEmailFree(tx, data.email);
     const t = now();
     const user = await tx.user.create({
@@ -285,7 +285,7 @@ export async function createStudentInvite(actor: UserActor, input: { maxUses: nu
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   const data = parseInput(StudentInviteSchema, input);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     let code = readableCode();
     for (let attempt = 0; attempt < 5; attempt++) {
       const clash = await tx.inviteCode.findUnique({ where: { code }, select: { id: true } });
@@ -326,7 +326,7 @@ export async function listInvites(actor: UserActor): Promise<InviteRow[]> {
 export async function revokeInvite(actor: UserActor, inviteId: string): Promise<void> {
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const invite = await tx.inviteCode.findFirst({ where: { id: inviteId, institutionId } });
     if (!invite) fail("NOT_FOUND", "Invite code not found.");
     const t = now();
@@ -342,7 +342,7 @@ export async function suspendUser(actor: UserActor, userId: string): Promise<voi
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   if (userId === actor.userId) fail("VALIDATION", "You cannot suspend your own account.");
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const user = await userInTenant(tx, institutionId, userId);
     if (user.status === "SUSPENDED") fail("INVALID_TRANSITION", "This account is already suspended.");
     await tx.user.update({ where: { id: user.id }, data: { status: "SUSPENDED" } });
@@ -359,7 +359,7 @@ export async function suspendUser(actor: UserActor, userId: string): Promise<voi
 export async function reactivateUser(actor: UserActor, userId: string): Promise<void> {
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const user = await userInTenant(tx, institutionId, userId);
     if (user.status === "ACTIVE") fail("INVALID_TRANSITION", "This account is already active.");
     await tx.user.update({ where: { id: user.id }, data: { status: "ACTIVE", failedLogins: 0, lockedUntil: null } });
@@ -373,7 +373,7 @@ export async function resetAccess(actor: UserActor, userId: string): Promise<One
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   if (userId === actor.userId) fail("VALIDATION", "Ask another administrator to reset your own access.");
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const user = await userInTenant(tx, institutionId, userId);
     if (user.status !== "ACTIVE") fail("INVALID_TRANSITION", "Reactivate this account before resetting its access.");
     const t = now();
@@ -467,7 +467,7 @@ export async function verifyProfessional(
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   const data = parseInput(VerifySchema, input);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const profile = await tx.professionalProfile.findFirst({ where: { userId, institutionId } });
     if (!profile) fail("NOT_FOUND", "Professional profile not found.");
     const t = now();
@@ -499,7 +499,7 @@ export async function createDepartment(actor: UserActor, input: { code: string; 
   assertCan(actor, "institution.manage");
   const institutionId = tenantOf(actor);
   const data = parseInput(DepartmentSchema, input);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const clash = await tx.department.findFirst({ where: { institutionId, code: data.code }, select: { id: true } });
     if (clash) fail("VALIDATION", "A department with this code already exists.");
     const dept = await tx.department.create({ data: { institutionId, code: data.code, name: data.name } });
@@ -512,7 +512,7 @@ export async function renameDepartment(actor: UserActor, departmentId: string, i
   assertCan(actor, "institution.manage");
   const institutionId = tenantOf(actor);
   const name = parseInput(DepartmentSchema.shape.name, input.name);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const dept = await tx.department.findFirst({ where: { id: departmentId, institutionId } });
     if (!dept) fail("NOT_FOUND", "Department not found.");
     await tx.department.update({ where: { id: dept.id }, data: { name } });
@@ -609,7 +609,7 @@ export async function updateInstitutionSettings(actor: UserActor, input: Setting
   assertCan(actor, "institution.manage");
   const institutionId = tenantOf(actor);
   const data = parseInput(SettingsSchema, input);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const current = await tx.institutionConfiguration.findUnique({ where: { institutionId } });
     if (!current) fail("NOT_FOUND", "Institution configuration is missing.");
     if (data.onCallResponderId) {
@@ -702,7 +702,7 @@ export async function verifyInstitutionAuditChain(actor: UserActor): Promise<Cha
   const institutionId = tenantOf(actor);
   const result = await verifyAuditChain(db, institutionId);
   const verifiedAt = now();
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await recordAudit(tx, actor, {
       action: "audit.verify",
       entityType: "AuditLog",

@@ -1,4 +1,4 @@
-import type { Locale } from "@/generated/prisma/enums";
+import type { Locale } from "@prisma/client";
 
 /**
  * Student-facing copy for booking, appointments and the consultation room. It adds to

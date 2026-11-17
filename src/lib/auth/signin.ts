@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
-import type { User } from "@/generated/prisma/client";
-import type { Locale, Role } from "@/generated/prisma/enums";
+import type { User } from "@prisma/client";
+import type { Locale, Role } from "@prisma/client";
 import { systemActor, type Actor, type SystemActor, type UserActor } from "@/lib/actor";
 import { now, MINUTE } from "@/lib/clock";
 import { decryptField, encryptField, sha256 } from "@/lib/crypto";
@@ -8,7 +8,7 @@ import { recordAudit, type AuditInput } from "@/lib/audit";
 import { createSession, demoModeEnabled, getPendingMfaUser, promotePendingSession, SESSION_COOKIE } from "@/lib/auth/session";
 import { hashPassword, PASSWORD_MIN_LENGTH, verifyPassword } from "@/lib/auth/password";
 import { generateTotpSecret, otpauthUri, verifyTotp } from "@/lib/auth/totp";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { demoPersona } from "@/lib/demo";
 import { DomainError, fail } from "@/lib/errors";
 
@@ -33,7 +33,7 @@ function actorFor(user: Pick<UserRow, "id" | "role" | "institutionId" | "name" |
 }
 
 async function audit(actor: Actor, input: AuditInput): Promise<void> {
-  await db.$transaction((tx) => recordAudit(tx, actor, input));
+  await runTx((tx) => recordAudit(tx, actor, input));
 }
 
 // A password check against a throwaway hash for unknown accounts, so response time does not
@@ -55,7 +55,7 @@ function lockedMessage(until: Date): string {
 
 /** Counts a failed attempt and locks the account after the limit. Returns the lock time, if any. */
 async function recordFailedAttempt(user: UserRow, action: string, reason: string): Promise<Date | null> {
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const t = now();
     const updated = await tx.user.update({ where: { id: user.id }, data: { failedLogins: { increment: 1 } }, select: { failedLogins: true } });
     let lockedUntil: Date | null = null;
@@ -109,7 +109,7 @@ export async function signInWithPassword(email: string, password: string, userAg
   }
 
   const needsSecondFactor = user.role !== "STUDENT" && user.mfaEnabledAt !== null;
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: t } });
     await recordAudit(tx, actorFor(user), {
       action: "auth.sign_in",
@@ -141,7 +141,7 @@ export async function verifySecondFactor(code: string, userAgent?: string | null
     fail("VALIDATION", "That code did not work. Check the code in your authenticator app and try again.");
   }
 
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { mfaLastCounter: counter, failedLogins: 0, lockedUntil: null } });
     await recordAudit(tx, actorFor(user), {
       action: "auth.sign_in",
@@ -167,7 +167,7 @@ export async function signInAsDemoPersona(key: string, userAgent?: string | null
   if (!user || user.status !== "ACTIVE" || !user.isDemo) fail("FORBIDDEN", "Demo sign-in is not available.");
 
   const t = now();
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: t } });
     await recordAudit(tx, actorFor(user), {
       action: "auth.sign_in",
@@ -250,7 +250,7 @@ export async function registerStudent(input: RegisterStudentInput): Promise<{ us
   const passwordHash = await hashPassword(input.password);
 
   try {
-    const user = await db.$transaction(async (tx) => {
+    const user = await runTx(async (tx) => {
       const t = now();
       if (await tx.user.findUnique({ where: { email }, select: { id: true } })) {
         fail("VALIDATION", "An account with this email already exists. Try signing in instead.");
@@ -324,7 +324,7 @@ export async function consumeSetPasswordToken(token: string, password: string): 
   if (!token) fail("VALIDATION", unusable);
   const passwordHash = await hashPassword(password);
 
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const t = now();
     const row = await tx.accessToken.findUnique({ where: { tokenHash: sha256(token) }, include: { user: true } });
     if (!row || row.purpose !== "SET_PASSWORD" || row.usedAt !== null || row.expiresAt <= t) fail("VALIDATION", unusable);
@@ -352,7 +352,7 @@ export async function startMfaEnrollment(actor: UserActor): Promise<MfaEnrollmen
   if (user.mfaEnabledAt) fail("INVALID_TRANSITION", "The second step is already on for this account.");
 
   const secret = generateTotpSecret();
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { mfaSecretCt: encryptField(secret), mfaEnabledAt: null, mfaLastCounter: null } });
     await recordAudit(tx, actor, { action: "auth.mfa_enrolment_started", entityType: "User", entityId: user.id });
   });
@@ -381,7 +381,7 @@ export async function confirmMfaEnrollment(actor: UserActor, code: string): Prom
   const counter = verifyTotp(decryptField(user.mfaSecretCt), code, now(), null);
   if (counter === null) fail("VALIDATION", "That code did not match. Check the code in your authenticator app and try again.");
 
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const t = now();
     await tx.user.update({ where: { id: user.id }, data: { mfaEnabledAt: t, mfaLastCounter: counter } });
     await recordAudit(tx, actor, { action: "auth.mfa_enrolled", entityType: "User", entityId: user.id });
@@ -404,7 +404,7 @@ export async function changePassword(actor: UserActor, current: string, next: st
 
   const passwordHash = await hashPassword(next);
   const keep = await currentTokenHash();
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
     // Other devices must sign in again with the new password; this one stays signed in.
     await tx.session.deleteMany({ where: { userId: user.id, ...(keep ? { tokenHash: { not: keep } } : {}) } });
@@ -434,7 +434,7 @@ export async function listOwnSessions(actor: UserActor): Promise<OwnSession[]> {
 /** Ends one of the actor's own sessions. Another person's session id behaves like a missing one. */
 export async function revokeSession(actor: UserActor, sessionId: string): Promise<{ wasCurrent: boolean }> {
   const keep = await currentTokenHash();
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const row = await tx.session.findFirst({ where: { id: sessionId, userId: actor.userId }, select: { id: true, tokenHash: true } });
     if (!row) fail("NOT_FOUND", "That session was not found. It may already have ended.");
     await tx.session.delete({ where: { id: row.id } });

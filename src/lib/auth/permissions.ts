@@ -1,4 +1,4 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 import type { Actor, UserActor } from "@/lib/actor";
 import { fail } from "@/lib/errors";
 

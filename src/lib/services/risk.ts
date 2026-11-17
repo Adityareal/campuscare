@@ -1,10 +1,10 @@
-import type { Prisma } from "@/generated/prisma/client";
-import type { TriageCategory } from "@/generated/prisma/enums";
+import type { Prisma } from "@prisma/client";
+import type { TriageCategory } from "@prisma/client";
 import { systemActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { DAY, now } from "@/lib/clock";
 import { shortReference } from "@/lib/crypto";
-import { db, type DbLike } from "@/lib/db";
+import { runTx, type DbLike } from "@/lib/db";
 import type { SeverityBand } from "@/lib/instruments";
 import { alertTitle, evaluateRisk, planAlertUpdate, RECOMMENDED_ACTION, type AlertPlan } from "@/lib/risk/engine";
 import { CATEGORY_RANK } from "@/lib/risk/rules";
@@ -26,7 +26,7 @@ export type RiskOutcome = {
  * (see services/alerts.ts); nothing in this file can do either.
  */
 export async function evaluateStudentRisk(studentId: string, institutionId: string, at: Date = now()): Promise<RiskOutcome> {
-  return db.$transaction((tx) => evaluateStudentRiskIn(tx, studentId, institutionId, at));
+  return runTx((tx) => evaluateStudentRiskIn(tx, studentId, institutionId, at));
 }
 
 export async function evaluateStudentRiskIn(client: DbLike, studentId: string, institutionId: string, at: Date): Promise<RiskOutcome> {
@@ -259,7 +259,7 @@ export async function startEscalation(
 /** Re-notifies the care team about urgent alerts nobody has acknowledged within the window.
  * Called by the scheduled tick. Never changes an alert's status or category. */
 export async function escalateOverdueUrgentAlerts(institutionId: string, at: Date = now()): Promise<number> {
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const overdue = await tx.alert.findMany({
       where: { institutionId, category: "URGENT", status: "NEW", slaDueAt: { lt: at } },
       include: { escalations: { orderBy: { attemptedAt: "desc" }, take: 1 } },

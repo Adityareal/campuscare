@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ReferralStatus } from "@/generated/prisma/enums";
+import type { ReferralStatus } from "@prisma/client";
 import { parseIstDateTime, pickOne } from "@/components/care/form-parse";
 import { formOptional, formString, guarded, type ActionState } from "@/lib/action-state";
 import { requireCareTeam } from "@/lib/auth/guards";

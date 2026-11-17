@@ -1,4 +1,4 @@
-import type { AlertStatus, CaseSource, CaseStatus, Role } from "@/generated/prisma/enums";
+import type { AlertStatus, CaseSource, CaseStatus, Role } from "@prisma/client";
 
 export const ALERT_STATUS_LABEL: Record<AlertStatus, string> = {
   NEW: "New",

@@ -1,10 +1,10 @@
-import type { ConsultationMode } from "@/generated/prisma/enums";
+import type { ConsultationMode } from "@prisma/client";
 import { systemActor, type UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, roleCan, tenantOf } from "@/lib/auth/permissions";
 import { DAY, MINUTE, now } from "@/lib/clock";
 import { decryptOptional } from "@/lib/crypto";
-import { db, type DbLike } from "@/lib/db";
+import { db, runTx, type DbLike } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { logCaseEvent, markMilestone } from "@/lib/services/cases";
 import { notify } from "@/lib/services/notifications";
@@ -87,7 +87,7 @@ export async function createSlots(
     }
   }
 
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const profile = await tx.professionalProfile.findUnique({ where: { userId: actor.userId } });
     if (mode === "VIDEO" && profile && !profile.offersVideo) {
       fail("VALIDATION", "Your profile does not offer video sessions. Choose in person.");
@@ -131,7 +131,7 @@ export async function createSlots(
 export async function removeSlot(actor: UserActor, slotId: string): Promise<void> {
   assertCan(actor, "availability.manage");
   const institutionId = tenantOf(actor);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const res = await tx.availabilitySlot.deleteMany({
       where: { id: slotId, institutionId, professionalId: actor.userId, status: "OPEN", appointmentId: null },
     });
@@ -216,7 +216,7 @@ export async function bookAppointment(
 ): Promise<{ appointmentId: string }> {
   assertCan(actor, "appointment.book");
   const institutionId = tenantOf(actor);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const t = now();
     let referral: { id: string; caseId: string } | null = null;
     if (input.referralId) {
@@ -262,7 +262,7 @@ export async function cancelAppointment(actor: UserActor, appointmentId: string,
   const asClinician = roleCan(actor.role, "consultation.conduct");
   if (!asStudent && !asClinician) fail("FORBIDDEN", "You do not have permission for this action.");
   const institutionId = tenantOf(actor);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const appt = await tx.appointment.findFirst({
       where: { id: appointmentId, institutionId, ...(asStudent ? { studentId: actor.userId } : { professionalId: actor.userId }) },
     });
@@ -315,7 +315,7 @@ export async function rescheduleAppointment(
 ): Promise<{ appointmentId: string }> {
   assertCan(actor, "appointment.book");
   const institutionId = tenantOf(actor);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const old = await tx.appointment.findFirst({ where: { id: appointmentId, institutionId, studentId: actor.userId } });
     if (!old) fail("NOT_FOUND", "Appointment not found.");
     const t = now();
@@ -374,7 +374,7 @@ export async function listRecommendedReferrals(actor: UserActor) {
 export async function declineOwnReferral(actor: UserActor, referralId: string): Promise<void> {
   assertCan(actor, "appointment.book");
   const institutionId = tenantOf(actor);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const referral = await tx.referral.findFirst({ where: { id: referralId, institutionId, studentId: actor.userId } });
     if (!referral) fail("NOT_FOUND", "That suggestion was not found.");
     if (referral.status !== "CREATED" && referral.status !== "NOT_ATTENDED") {
@@ -459,7 +459,7 @@ export async function getClinicianAppointment(actor: UserActor, appointmentId: s
  */
 export async function sendAppointmentReminders(institutionId: string, at: Date): Promise<number> {
   const horizon = new Date(at.getTime() + DAY);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const due = await tx.appointment.findMany({
       where: { institutionId, status: "BOOKED", reminderSentAt: null, startsAt: { gte: at, lte: horizon } },
       select: { id: true, studentId: true },

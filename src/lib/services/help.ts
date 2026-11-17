@@ -1,10 +1,10 @@
-import type { HelpRequestType } from "@/generated/prisma/enums";
+import type { HelpRequestType } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { encryptOptional } from "@/lib/crypto";
-import { db, type DbLike } from "@/lib/db";
+import { runTx, type DbLike } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { evaluateAfterCommit } from "@/lib/services/access";
 import { ensureOpenCase } from "@/lib/services/cases";
@@ -69,7 +69,7 @@ export async function requestHelp(
   assertCan(actor, "help.request");
   const institutionId = tenantOf(actor);
   if (!HELP_TYPES.includes(input.type)) fail("VALIDATION", "Choose a type of support.");
-  const result = await db.$transaction(async (tx) => {
+  const result = await runTx(async (tx) => {
     const r = await createHelpRequestIn(tx, { institutionId, studentId: actor.userId, type: input.type, details: input.details, origin: input.origin ?? "help_form" });
     await recordAudit(tx, actor, { action: "help.request", entityType: "HelpRequest", entityId: r.helpRequestId, metadata: { type: input.type, caseId: r.caseId } });
     return r;

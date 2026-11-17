@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { TriageCategory } from "@/generated/prisma/enums";
+import type { TriageCategory } from "@prisma/client";
 
 export const CATEGORY_RANK: Record<TriageCategory, number> = { ROUTINE: 0, MONITOR: 1, PRIORITY: 2, URGENT: 3 };
 

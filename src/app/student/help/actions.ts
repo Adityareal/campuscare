@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { HelpRequestType } from "@/generated/prisma/enums";
+import type { HelpRequestType } from "@prisma/client";
 import { formOptional, formString, guarded, type ActionState } from "@/lib/action-state";
 import { requireStudent } from "@/lib/auth/guards";
 import { tenantOf } from "@/lib/auth/permissions";

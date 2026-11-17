@@ -1,10 +1,10 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { decryptField, encryptField } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { logCaseEvent, markMilestone, OPEN_CASE_STATUSES } from "@/lib/services/cases";
 import { careTeamIds, notify } from "@/lib/services/notifications";
@@ -55,7 +55,7 @@ export async function sendCaseMessage(actor: UserActor, caseId: string, body: st
   assertCan(actor, "case.manage");
   const institutionId = tenantOf(actor);
   const text = cleanBody(body);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await tx.case.findFirst({ where: { id: caseId, institutionId } });
     if (!c) fail("NOT_FOUND", "Case not found.");
     if (c.status === "CLOSED") fail("INVALID_TRANSITION", "This case is closed. Reopen it before writing to the student.");
@@ -152,7 +152,7 @@ export async function sendStudentMessage(actor: UserActor, caseId: string, body:
   assertCan(actor, "own.history.read");
   const institutionId = tenantOf(actor);
   const text = cleanBody(body);
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const c = await tx.case.findFirst({ where: { id: caseId, institutionId, studentId: actor.userId } });
     if (!c) fail("NOT_FOUND", "Conversation not found.");
     if (c.status === "CLOSED") fail("INVALID_TRANSITION", "This conversation is closed. You can ask for support to start a new one.");

@@ -12,7 +12,7 @@
  * All people and phone numbers are fictional. Emails use the reserved .example domain.
  */
 import "dotenv/config";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import type {
   AlertDecision,
   ConsultationMode,
@@ -24,7 +24,7 @@ import type {
   ReviewerFeedback,
   Role,
   TriageCategory,
-} from "@/generated/prisma/enums";
+} from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { DAY, HOUR, MINUTE, now, setClock } from "@/lib/clock";
@@ -994,7 +994,13 @@ export async function seed(): Promise<void> {
         slots.push({ institutionId: inst, professionalId: clinician.id, startsAt, endsAt: later(startsAt, 45 * MINUTE), mode: hhmm === "16:00" ? "IN_PERSON" : "VIDEO", status: "OPEN" });
       }
     }
-    await db.availabilitySlot.createMany({ data: slots, skipDuplicates: true });
+    // Booked appointments above already created some of these slots. MongoDB has no
+    // skipDuplicates, so leave out the start times that exist.
+    const taken = new Set(
+      (await db.availabilitySlot.findMany({ where: { professionalId: clinician.id }, select: { startsAt: true } })).map((s) => s.startsAt.getTime()),
+    );
+    const fresh = slots.filter((s) => !taken.has(new Date(s.startsAt).getTime()));
+    if (fresh.length) await db.availabilitySlot.createMany({ data: fresh });
   }
 
   // A few students book upcoming sessions through the real booking service, so the clinician

@@ -1,10 +1,10 @@
-import type { ConsentScope, Locale } from "@/generated/prisma/enums";
+import type { ConsentScope, Locale } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { sha256, stableStringify } from "@/lib/crypto";
-import { db, type DbLike } from "@/lib/db";
+import { runTx, type DbLike } from "@/lib/db";
 import { en } from "@/lib/i18n/en";
 import { hi } from "@/lib/i18n/hi";
 
@@ -69,7 +69,7 @@ export async function recordConsentChoices(
 ): Promise<ConsentState> {
   assertCan(actor, "consent.manage.own");
   const institutionId = tenantOf(actor);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     await ensureCurrentPolicy(tx);
     const current = await getConsentState(tx, actor.userId);
     const changed = CONSENT_SCOPES.filter((s) => current.needsReview || current[s] !== choices[s]);

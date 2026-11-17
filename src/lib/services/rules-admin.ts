@@ -3,7 +3,7 @@ import { recordAudit } from "@/lib/audit";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { stableStringify } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { parseRules, RiskRulesSchema, type RiskRules } from "@/lib/risk/rules";
 
@@ -57,7 +57,7 @@ export async function updateRules(
     fail("VALIDATION", `Those rules are not valid${where}. Check the values and try again.`);
   }
 
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const row = await tx.institutionConfiguration.findUnique({ where: { institutionId } });
     if (!row) fail("NOT_FOUND", "Institution configuration is missing.");
     if (expectedVersion !== undefined && expectedVersion !== row.riskRulesVersion) {

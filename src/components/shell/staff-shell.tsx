@@ -21,7 +21,7 @@ import {
   UsersThreeIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 import { signOutAction } from "@/app/_actions/shell";
 import { Notice } from "@/components/ui";
 import { buttonClass, cx } from "@/components/ui/classes";

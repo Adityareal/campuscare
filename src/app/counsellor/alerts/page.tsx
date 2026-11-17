@@ -1,4 +1,4 @@
-import type { TriageCategory } from "@/generated/prisma/enums";
+import type { TriageCategory } from "@prisma/client";
 import { AlertTable } from "@/components/care/alert-table";
 import { QueryTabs } from "@/components/care/tabs";
 import { EmptyState, Notice, PageHeader } from "@/components/ui";

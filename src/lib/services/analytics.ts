@@ -1,4 +1,4 @@
-import type { ReviewerFeedback, TriageCategory } from "@/generated/prisma/enums";
+import type { ReviewerFeedback, TriageCategory } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { assertCan, tenantOf } from "@/lib/auth/permissions";
 import { DAY, now } from "@/lib/clock";

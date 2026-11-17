@@ -1,10 +1,10 @@
-import type { AppointmentStatus, ConsultationMode } from "@/generated/prisma/enums";
+import type { AppointmentStatus, ConsultationMode } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
 import { assertCan, roleCan, tenantOf } from "@/lib/auth/permissions";
 import { MINUTE, now } from "@/lib/clock";
 import { randomToken } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, runTx } from "@/lib/db";
 import { fail } from "@/lib/errors";
 import { markMilestone } from "@/lib/services/cases";
 import { configuredVideoProvider, getVideoProvider, type JoinInfo } from "@/lib/video";
@@ -148,7 +148,7 @@ export async function markJoined(actor: UserActor, appointmentId: string): Promi
     fail("INVALID_TRANSITION", "The room opens 15 minutes before the start and closes 30 minutes after the end.");
   }
   const consultation = await ensureConsultation(appt);
-  return db.$transaction(async (tx) => {
+  return runTx(async (tx) => {
     const c = await tx.consultation.findUniqueOrThrow({ where: { id: consultation.id } });
     const t = now();
     const studentJoinedAt = c.studentJoinedAt ?? (role === "student" ? t : null);
@@ -194,7 +194,7 @@ export async function completeConsultation(
     }
   }
 
-  await db.$transaction(async (tx) => {
+  await runTx(async (tx) => {
     const appt = await tx.appointment.findFirst({ where: { id: appointmentId, institutionId, professionalId: actor.userId } });
     if (!appt) fail("NOT_FOUND", "Appointment not found.");
     const t = now();

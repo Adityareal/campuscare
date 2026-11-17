@@ -1,4 +1,4 @@
-import type { HelpRequestType, Instrument, TriageCategory } from "@/generated/prisma/enums";
+import type { HelpRequestType, Instrument, TriageCategory } from "@prisma/client";
 import { fmtDay, fmtTime } from "@/lib/format";
 import { BAND_LABEL, type SeverityBand } from "@/lib/instruments";
 import { CATEGORY_RANK, maxCategory, RULE_LABELS, type RiskRules } from "@/lib/risk/rules";

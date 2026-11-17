@@ -4,7 +4,7 @@ import { StudentShell } from "@/components/shell/student-shell";
 import { ContactLinks } from "@/components/student/contacts";
 import { UrgentRequest } from "@/components/student/urgent-request";
 import { ButtonLink, Notice, PageHeader, Panel } from "@/components/ui";
-import type { Locale } from "@/generated/prisma/enums";
+import type { Locale } from "@prisma/client";
 import { getCurrentActor } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { fill, getDictionary } from "@/lib/i18n";

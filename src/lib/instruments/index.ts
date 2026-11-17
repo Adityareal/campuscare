@@ -1,4 +1,4 @@
-import type { Instrument } from "@/generated/prisma/enums";
+import type { Instrument } from "@prisma/client";
 import { fail } from "@/lib/errors";
 
 /**

@@ -1,4 +1,4 @@
-import type { TriageCategory } from "@/generated/prisma/enums";
+import type { TriageCategory } from "@prisma/client";
 import { alertTitle, evaluateRisk, RECOMMENDED_ACTION, type AssessmentPoint, type CheckInPoint, type Finding } from "@/lib/risk/engine";
 import { DEFAULT_RULES } from "@/lib/risk/rules";
 import { PHQ9, scoreInstrument } from "@/lib/instruments";

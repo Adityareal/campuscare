@@ -1,4 +1,4 @@
-import type { Locale } from "@/generated/prisma/enums";
+import type { Locale } from "@prisma/client";
 
 /**
  * Student app copy that is not in the shared dictionary (src/lib/i18n/en.ts and hi.ts).

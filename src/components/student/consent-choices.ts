@@ -1,4 +1,4 @@
-import type { ConsentScope } from "@/generated/prisma/enums";
+import type { ConsentScope } from "@prisma/client";
 import { formBool } from "@/lib/action-state";
 
 /** Reads the three consent checkboxes. The two optional scopes depend on core processing, so

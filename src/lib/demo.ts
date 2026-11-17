@@ -1,4 +1,4 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { Role } from "@prisma/client";
 
 /**
  * Demo data contract shared by the seed script and the sign-in page. Persona sign-in buttons

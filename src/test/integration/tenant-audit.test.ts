@@ -76,13 +76,15 @@ describe("tenant isolation", () => {
 });
 
 describe("audit log", () => {
-  it("rejects UPDATE and DELETE at the database", async () => {
+  it("rejects update, upsert and delete of audit rows", async () => {
     const before = await t.db.auditLog.count({ where: { chain: firstId } });
     expect(before).toBeGreaterThan(0);
-    await expect(t.db.auditLog.updateMany({ where: { chain: firstId }, data: { action: "tampered" } })).rejects.toThrow();
-    await expect(t.db.auditLog.deleteMany({ where: { chain: firstId } })).rejects.toThrow();
-    await expect(t.pg.query(`UPDATE "AuditLog" SET "action" = 'tampered' WHERE "chain" = $1`, [firstId])).rejects.toThrow(/append-only/);
-    await expect(t.pg.query(`DELETE FROM "AuditLog" WHERE "chain" = $1`, [firstId])).rejects.toThrow(/append-only/);
+    const row = await t.db.auditLog.findFirstOrThrow({ where: { chain: firstId } });
+    await expect(t.db.auditLog.updateMany({ where: { chain: firstId }, data: { action: "tampered" } })).rejects.toThrow(/append-only/);
+    await expect(t.db.auditLog.update({ where: { id: row.id }, data: { action: "tampered" } })).rejects.toThrow(/append-only/);
+    await expect(t.db.auditLog.upsert({ where: { id: row.id }, update: { action: "tampered" }, create: { ...row } })).rejects.toThrow(/append-only/);
+    await expect(t.db.auditLog.delete({ where: { id: row.id } })).rejects.toThrow(/append-only/);
+    await expect(t.db.auditLog.deleteMany({ where: { chain: firstId } })).rejects.toThrow(/append-only/);
     expect(await t.db.auditLog.count({ where: { chain: firstId } })).toBe(before);
     expect(await t.db.auditLog.count({ where: { action: "tampered" } })).toBe(0);
   });

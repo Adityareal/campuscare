@@ -1,6 +1,6 @@
 import "@/test/env";
 import { describe, expect, it } from "vitest";
-import type { HelpRequestType, TriageCategory } from "@/generated/prisma/enums";
+import type { HelpRequestType, TriageCategory } from "@prisma/client";
 import type { SeverityBand } from "@/lib/instruments";
 import {
   evaluateRisk,

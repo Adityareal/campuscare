@@ -34,13 +34,12 @@ beforeEach(() => setClock(TEST_START));
 afterEach(() => setClock(null));
 
 describe("consent records", () => {
-  it("are append-only: the database rejects an UPDATE", async () => {
+  it("are append-only: updates are rejected", async () => {
     const student = await makeUser("STUDENT", institutionId);
     await grantConsent(student.id, institutionId, ["CORE_PROCESSING"]);
-    await expect(t.db.consentRecord.updateMany({ where: { userId: student.id }, data: { decision: "WITHDRAWN" } })).rejects.toThrow();
-    await expect(
-      t.pg.query(`UPDATE "ConsentRecord" SET "decision" = 'WITHDRAWN' WHERE "userId" = $1`, [student.id]),
-    ).rejects.toThrow(/append-only/);
+    const row = await t.db.consentRecord.findFirstOrThrow({ where: { userId: student.id } });
+    await expect(t.db.consentRecord.updateMany({ where: { userId: student.id }, data: { decision: "WITHDRAWN" } })).rejects.toThrow(/append-only/);
+    await expect(t.db.consentRecord.update({ where: { id: row.id }, data: { decision: "WITHDRAWN" } })).rejects.toThrow(/append-only/);
     const rows = await t.db.consentRecord.findMany({ where: { userId: student.id } });
     expect(rows.map((r) => r.decision)).toEqual(["GRANTED"]);
   });

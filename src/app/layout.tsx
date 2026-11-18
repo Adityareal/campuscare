@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { Noto_Sans_Devanagari } from "next/font/google";
-import { getCurrentActor } from "@/lib/auth/session";
+import { demoModeEnabled, getCurrentActor } from "@/lib/auth/session";
+import { DemoNotice } from "@/components/ui/demo-notice";
 import { HTML_LANG } from "@/lib/i18n";
 import "./globals.css";
 
@@ -33,7 +34,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const actor = await getCurrentActor();
   return (
     <html lang={HTML_LANG[actor?.locale ?? "en"]} className={`${GeistSans.variable} ${GeistMono.variable} ${devanagari.variable}`}>
-      <body className="bg-canvas text-ink antialiased">{children}</body>
+      <body className="flex min-h-dvh flex-col bg-canvas text-ink antialiased">
+        {demoModeEnabled() ? <DemoNotice /> : null}
+        {children}
+      </body>
     </html>
   );
 }

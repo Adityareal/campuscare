@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/classes";
 import { HeroIllustration } from "@/components/landing/hero-illustration";
-import { PILOT_LABEL, PILOT_MAILTO, TRY_HREF, TRY_LABEL } from "@/components/landing/constants";
+import { PILOT_LABEL, TRY_HREF, TRY_LABEL } from "@/components/landing/constants";
 
-export function Hero({ homeHref }: { homeHref: string | null }) {
+export function Hero({ homeHref, pilotHref }: { homeHref: string | null; pilotHref: string | null }) {
   return (
     <section aria-labelledby="hero-heading" className="mx-auto w-full max-w-6xl px-4 pb-16 pt-12 md:px-8 md:pb-24 md:pt-16 lg:pt-20">
       <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12">
@@ -15,9 +15,11 @@ export function Hero({ homeHref }: { homeHref: string | null }) {
             CampusCare helps counselling teams notice when a student may need support, then act on it with consent and clear records.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href={PILOT_MAILTO} className={buttonClass("primary", "md")}>
-              {PILOT_LABEL}
-            </a>
+            {pilotHref ? (
+              <a href={pilotHref} className={buttonClass("primary", "md")}>
+                {PILOT_LABEL}
+              </a>
+            ) : null}
             <Link href={TRY_HREF} className={buttonClass("secondary", "md")}>
               {TRY_LABEL}
             </Link>

@@ -90,7 +90,7 @@ export function StageLeaders({ state, dispatch }: { state: DemoState; dispatch: 
       <Panel title="Your student in the numbers">
         <p className="text-sm text-ink-2">
           {counted
-            ? `Because the student agreed to anonymous statistics, they are counted in ${STUDENT_DEPARTMENT} as one of the ${view.rows.find((r) => r.key === STUDENT_DEPARTMENT)?.suppressed ? "hidden" : view.rows.find((r) => r.key === STUDENT_DEPARTMENT)?.n} students. Nobody can tell which one.`
+            ? `Because the student agreed to anonymous statistics, they are counted in ${STUDENT_DEPARTMENT} as one of the ${view.rows.find((r) => r.key === STUDENT_DEPARTMENT)?.suppressed ? "hidden" : view.rows.find((r) => r.key === STUDENT_DEPARTMENT)?.n} students. This makes it harder to tell which one.`
             : "The student did not agree to anonymous statistics, so they are not counted in any figure here."}
         </p>
         <div className="mt-3">
@@ -100,7 +100,7 @@ export function StageLeaders({ state, dispatch }: { state: DemoState; dispatch: 
         </div>
       </Panel>
 
-      <Notice tone="info">The floor of 5 holds for every institution. Hidden groups also hide the next smallest one, so a hidden number cannot be worked out by subtracting from the total.</Notice>
+      <Notice tone="info">The floor of 5 holds for every institution. Hidden groups also hide the next smallest one, to make a hidden number harder to work out by subtracting from the total.</Notice>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export type CohortView = {
 
 const REASON_TEXT = {
   small_group: (k: number) => `Fewer than ${k} students, so the group is hidden.`,
-  complementary: () => "Hidden as well, so the hidden group cannot be worked out by subtracting from the total.",
+  complementary: () => "Hidden as well, to make the hidden group harder to work out by subtracting from the total.",
 } as const;
 
 /**

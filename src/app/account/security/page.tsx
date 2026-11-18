@@ -31,8 +31,8 @@ export default async function SecurityPage() {
         </Notice>
       ) : null}
       {actor.mfa === "demo_exempt" ? (
-        <Notice tone="warning" title="Demo account">
-          The second step is skipped for demo accounts while demo mode is on. Demo mode must never hold real data.
+        <Notice tone="info" title="Sample staff account">
+          Sample staff skip the second sign-in step on this demo site.
         </Notice>
       ) : null}
 

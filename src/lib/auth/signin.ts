@@ -157,7 +157,7 @@ export async function verifySecondFactor(code: string, userAgent?: string | null
 
 // ---------- Demo personas ----------
 
-/** One-click sign-in for the seeded demo people. Refused unless DEMO_MODE is on and the user is a
+/** One-click sign-in for the seeded demo people. Refused unless CAMPUSCARE_DEPLOYMENT=demo and the user is a
  * demo user. Server Actions only. */
 export async function signInAsDemoPersona(key: string, userAgent?: string | null): Promise<{ role: Role }> {
   if (!demoModeEnabled()) fail("FORBIDDEN", "Demo sign-in is not available.");

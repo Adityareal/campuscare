@@ -75,11 +75,15 @@ export default async function HelpNowPage({ searchParams }: { searchParams: Prom
     </div>
   );
 
-  if (student) return <StudentShell actor={student}>{content}</StudentShell>;
+  // The demo notice (root layout) comes first in the document. `-order-1` puts this page above it
+  // visually, so the crisis numbers stay on the first screen and the notice follows them.
+  const frame = (page: React.ReactNode) => <div className="-order-1 flex flex-1 flex-col">{page}</div>;
+
+  if (student) return frame(<StudentShell actor={student}>{content}</StudentShell>);
 
   const other: Locale = locale === "en" ? "hi" : "en";
-  return (
-    <div lang={locale} className="min-h-[100dvh]">
+  return frame(
+    <div lang={locale} className="flex-1">
       <header className="border-b border-line bg-canvas">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
           <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
@@ -93,6 +97,6 @@ export default async function HelpNowPage({ searchParams }: { searchParams: Prom
       <main id="main" className="mx-auto max-w-5xl px-4 py-6 md:py-10">
         {content}
       </main>
-    </div>
+    </div>,
   );
 }

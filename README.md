@@ -21,7 +21,7 @@ npm install
 Copy-Item .env.example .env
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # paste into FIELD_ENCRYPTION_KEY
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # paste into CRON_SECRET
-# edit .env: set DATABASE_URL to the Atlas connection string, and DEMO_MODE="true" for demos
+# edit .env: set DATABASE_URL to the Atlas connection string, and CAMPUSCARE_DEPLOYMENT="demo" for demos
 npm run dev
 ```
 
@@ -32,7 +32,7 @@ npm install
 cp .env.example .env
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # paste into FIELD_ENCRYPTION_KEY
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"      # paste into CRON_SECRET
-# edit .env: set DATABASE_URL to the Atlas connection string, and DEMO_MODE="true" for demos
+# edit .env: set DATABASE_URL to the Atlas connection string, and CAMPUSCARE_DEPLOYMENT="demo" for demos
 npm run dev
 ```
 
@@ -44,7 +44,7 @@ Production check: `npm run build`, then `npx next start`.
 
 ## Demo
 
-With `DEMO_MODE=true`, `/sign-in` shows one-click personas (defined in `src/lib/demo.ts`). All people, phone numbers and email addresses are fictional; emails use the reserved `.example` domain.
+With `CAMPUSCARE_DEPLOYMENT=demo` (the only value that turns demo mode on), `/sign-in` shows one-click personas (defined in `src/lib/demo.ts`). All people, phone numbers and email addresses are fictional; emails use the reserved `.example` domain.
 
 | Persona | Role |
 |---|---|
@@ -101,13 +101,28 @@ Safety rules the code enforces:
 ## Pilot deployment
 
 - Set `DATABASE_URL` (or `MONGODB_URI`) to the Atlas connection string. Atlas must run as a replica set, which every Atlas cluster does. Run `npm run db:push` after a schema change.
-- Set `DEMO_MODE=false`.
+- Set `CAMPUSCARE_DEPLOYMENT=pilot` (or `production`). Only `demo` turns demo mode on; any other value logs one error for an unrecognised word and leaves demo mode off. `db:seed` and `db:reset` refuse to run unless it is `demo`.
+- Use the pilot's own empty database, never the demo one.
+- Set `PILOT_CONTACT_EMAIL` to one plain address on a real domain for the "Request a pilot" buttons. Without it the buttons are hidden. On Vercel, a changed environment variable takes effect only after a redeploy.
 - Provide `FIELD_ENCRYPTION_KEY` from a secret store. Losing it makes encrypted text unreadable, so back it up there.
 - Set `APP_ORIGIN` to the public https origin.
 - Call `POST /api/internal/tick` every 5 minutes with the header `Authorization: Bearer $CRON_SECRET`. It escalates overdue urgent alerts, notifies due follow-ups and sends appointment reminders.
 - Video: `VIDEO_PROVIDER=daily` with `DAILY_API_KEY` and `DAILY_DOMAIN`. The Daily.co integration is untested. The default `dev` provider is a local waiting room with no media relay.
 - Set `FRAME_ANCESTORS` only for local preview embedding. Leave it unset in production.
 - Staff sign in with a password and a second step (TOTP). Staff enrol the second factor on first sign-in.
+
+## Before a commercial deployment
+
+Work through this list before real student data enters any deployment.
+
+- **Legal review**: Digital Personal Data Protection Act 2023 and its rules, Mental Healthcare Act 2017, Telemedicine Practice Guidelines 2020.
+- **Privacy review**: consent wording, data retention, and what each role can see.
+- **Security review**: a penetration test, key management for `FIELD_ENCRYPTION_KEY`, and a backup that has been restored successfully at least once.
+- **Clinical review**: triage rules, the crisis protocol, and the Hindi wording.
+- **Settings for a pilot**: `CAMPUSCARE_DEPLOYMENT=pilot`; its own empty database; its own `FIELD_ENCRYPTION_KEY`; `CRON_SECRET` with a scheduler calling `POST /api/internal/tick` every 5 minutes; `APP_ORIGIN`; `PILOT_CONTACT_EMAIL`.
+- **The known gaps** listed below.
+
+Nothing schedules the tick on the demo site, so automatic reminders and repeat escalations do not run there.
 
 ## Known gaps before a pilot
 

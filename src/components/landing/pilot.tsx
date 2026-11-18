@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/ssr";
 import { buttonClass } from "@/components/ui/classes";
-import { PILOT_LABEL, PILOT_MAILTO, TRY_HREF, TRY_LABEL } from "@/components/landing/constants";
+import { PILOT_LABEL, TRY_HREF, TRY_LABEL } from "@/components/landing/constants";
 
 const NEEDS = [
   { verb: "Name", rest: "a small care team of counsellors and at least one clinician who will review alerts." },
@@ -9,10 +9,10 @@ const NEEDS = [
   { verb: "Agree", rest: "the written triage rules and response times with your clinicians." },
   { verb: "Invite", rest: "a first group of students and staff, using invitation codes." },
   { verb: "Review", rest: "the consent wording and data handling with your legal and clinical advisers." },
-  { verb: "Switch off", rest: "demo mode and set the encryption key, database and scheduled job before real data enters." },
+  { verb: "Expect", rest: "your own separate deployment and database, your own encryption key, scheduled reminders, and two-step sign-in for all staff." },
 ] as const;
 
-export function Pilot() {
+export function Pilot({ pilotHref }: { pilotHref: string | null }) {
   return (
     <section id="pilot" aria-labelledby="pilot-heading" className="scroll-mt-20 border-t border-line">
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-16 md:px-8 md:py-24 lg:grid-cols-12 lg:gap-14">
@@ -26,9 +26,11 @@ export function Pilot() {
             required before launch.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href={PILOT_MAILTO} className={buttonClass("primary", "md")}>
-              {PILOT_LABEL}
-            </a>
+            {pilotHref ? (
+              <a href={pilotHref} className={buttonClass("primary", "md")}>
+                {PILOT_LABEL}
+              </a>
+            ) : null}
             <Link href={TRY_HREF} className={buttonClass("secondary", "md")}>
               {TRY_LABEL}
             </Link>

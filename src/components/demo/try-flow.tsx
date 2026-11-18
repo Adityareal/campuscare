@@ -14,7 +14,7 @@ import { STAGES, stageIndex, type StageId } from "@/lib/demo-flow/content";
 import { nextEnabledIndex } from "@/lib/demo-flow/keys";
 import { demoReducer, evaluationFor, initialState } from "@/lib/demo-flow/state";
 
-export function TryFlow({ initialStage }: { initialStage: StageId }) {
+export function TryFlow({ initialStage, hasSignInDemo }: { initialStage: StageId; hasSignInDemo: boolean }) {
   const [state, dispatch] = useReducer(demoReducer, initialStage, initialState);
   const ev = useMemo(
     () => evaluationFor(state),
@@ -147,10 +147,12 @@ export function TryFlow({ initialStage }: { initialStage: StageId }) {
                 <Link href="/" className={buttonClass("secondary")}>
                   Back to the landing page
                 </Link>
-                <Link href="/sign-in" className={buttonClass("primary")}>
-                  Open the full demo
-                  <ArrowRightIcon size={16} aria-hidden />
-                </Link>
+                {hasSignInDemo ? (
+                  <Link href="/sign-in" className={buttonClass("primary")}>
+                    Open the full demo
+                    <ArrowRightIcon size={16} aria-hidden />
+                  </Link>
+                ) : null}
               </>
             )}
             <Button variant="ghost" className="sm:ml-auto" onClick={() => dispatch({ type: "reset" })}>
@@ -158,7 +160,7 @@ export function TryFlow({ initialStage }: { initialStage: StageId }) {
               Reset
             </Button>
           </div>
-          {!next ? <p className="text-sm text-ink-3">The full demo on the sign-in page has seeded sample people, cases and weeks of history.</p> : null}
+          {!next && hasSignInDemo ? <p className="text-sm text-ink-3">The full demo on the sign-in page has seeded sample people, cases and weeks of history.</p> : null}
         </div>
       </div>
     </section>

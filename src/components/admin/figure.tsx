@@ -15,8 +15,8 @@ export function FigureText({ figure, k, format = fmtCount }: { figure: Figure; k
 export function SuppressionNote({ k, children }: { k: number; children?: ReactNode }) {
   return (
     <p className="max-w-[70ch] text-sm text-ink-3">
-      Figures that describe fewer than {k} students are hidden so no one can be identified. When a table shows a total and only
-      one group is hidden, the next smallest group is hidden as well so the first cannot be worked out by subtraction.
+      Figures that describe fewer than {k} students are hidden to lower the risk that anyone is identified. When a table shows a total and only
+      one group is hidden, the next smallest group is hidden as well, so the first is harder to work out by subtraction.
       {children ? <> {children}</> : null}
     </p>
   );

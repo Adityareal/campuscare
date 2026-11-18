@@ -1,6 +1,10 @@
 /** Student-facing copy. Staff surfaces are English-only in Phase 1. Placeholders use {name}. */
 export const en = {
   meta: { languageName: "English", switchTo: "हिंदी" },
+  demoNotice: {
+    title: "Demo site",
+    body: "This is a demo with made-up sample data. Do not enter real student information. Automatic reminders and repeat escalations do not run here.",
+  },
   nav: { home: "Home", checkIn: "Check in", care: "Care", messages: "Messages", privacy: "Privacy", history: "History" },
   common: {
     getHelpNow: "Get help now",
@@ -33,7 +37,7 @@ export const en = {
     noUpdates: "No new updates.",
     supportTitle: "Support on campus",
     teamHours: "Care team hours: {hours}",
-    crisisLine: "If you are in danger right now, call 112. For free 24x7 mental health support, call Tele-MANAS on 14416.",
+    crisisLine: "If you are in danger right now, call 112. Tele-MANAS (14416) describes its mental health support as free and open 24x7.",
     viewHistory: "See your history",
   },
   checkIn: {
@@ -97,7 +101,7 @@ export const en = {
   urgent: {
     title: "Get help now",
     danger: "If you or someone else is in immediate danger, call 112 now.",
-    teleManas: "Tele-MANAS: free, confidential mental health support, day and night, in many Indian languages.",
+    teleManas: "Tele-MANAS describes its service as free and confidential mental health support, day and night, in many Indian languages.",
     campusTeam: "Campus care team",
     notEmergency: "CampusCare is not an emergency service and is not monitored around the clock.",
     requestUrgent: "Ask the campus team to contact me urgently",
@@ -156,7 +160,7 @@ export const en = {
       },
       CARE_TEAM_REVIEW: {
         title: "Let the campus care team review my trends",
-        body: "Counsellors can see your check-in and questionnaire results, and the system can flag patterns that suggest you may need support. A person always reviews a flag before anyone contacts you.",
+        body: "Counsellors can see your check-in and questionnaire results, and the system can flag patterns that suggest you may need support. A flag is meant to be reviewed by a person before anyone contacts you.",
       },
       AGGREGATE_ANALYTICS: {
         title: "Include me in anonymous campus statistics",
@@ -169,7 +173,7 @@ export const en = {
       "You: everything you enter.",
       "Campus care team: your requests, and your trends if you allow it.",
       "Clinicians you meet: their own consultation notes.",
-      "Institution administrators: only anonymous totals, never your answers.",
+      "Institution administrators: totals for groups, not your answers.",
     ],
     retention: "Your institution sets how long records are kept. To get a copy of your data or ask for deletion, contact the care team.",
     withdrawNote: "Turning a choice off stops new sharing from now on. It does not delete records already made.",

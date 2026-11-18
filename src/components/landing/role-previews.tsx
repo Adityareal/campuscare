@@ -200,7 +200,7 @@ export function AdminPreview() {
           key: c.key,
           label: c.key,
           value: c.value,
-          note: c.suppressed ? "Hidden because this group has fewer than 10 students, so no one can be picked out." : `${c.n} students`,
+          note: c.suppressed ? "Hidden because this group has fewer than 10 students, to make it harder to identify anyone." : `${c.n} students`,
         }))}
       />
       <Notice tone="info" title={hidden.length === 1 ? "One group is hidden" : `${hidden.length} groups are hidden`}>

@@ -30,7 +30,7 @@ import { recordAudit } from "@/lib/audit";
 import { DAY, HOUR, MINUTE, now, setClock } from "@/lib/clock";
 import { encryptField, randomToken } from "@/lib/crypto";
 import { closeDb, db } from "@/lib/db";
-import { DEMO_INSTITUTION, DEMO_PERSONAS, SECOND_INSTITUTION } from "@/lib/demo";
+import { assertDemoDeployment, DEMO_INSTITUTION, DEMO_PERSONAS, SECOND_INSTITUTION } from "@/lib/demo";
 import { isDomainError } from "@/lib/errors";
 import { isoDay, istToUtc } from "@/lib/format";
 import { DEFAULT_RULES } from "@/lib/risk/rules";
@@ -658,6 +658,7 @@ function scheduleBackground(ctx: Ctx, s: Student, pattern: "regular" | "frequent
 // ---------- Main ----------
 
 export async function seed(): Promise<void> {
+  assertDemoDeployment("seed demo data");
   const existing = await db.institution.count();
   if (existing > 0) {
     console.log("[seed] Database already has data; skipping. Run `npm run db:reset` for a fresh copy.");

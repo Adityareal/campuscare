@@ -19,7 +19,7 @@ export function AuthShell({
 }) {
   const t = accessText(locale);
   return (
-    <div lang={locale === "hi" ? "hi-IN" : "en-IN"} className="flex min-h-[100dvh] flex-col">
+    <div lang={locale === "hi" ? "hi-IN" : "en-IN"} className="flex flex-1 flex-col">
       <header className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4 md:px-8">
         <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
           CampusCare

@@ -13,10 +13,10 @@ const SAFEGUARDS = [
   },
   {
     title: "Administrators see anonymous totals",
-    body: "Institution leaders get aggregate counts. Groups below a minimum size, never under 5, are hidden so no one can be picked out.",
+    body: "Institution leaders get aggregate counts. Groups below a minimum size, never under 5, are hidden to make it harder to identify anyone.",
   },
   {
-    title: "Consultations are never recorded",
+    title: "CampusCare does not record consultations",
     body: "Video sessions are not recorded by the system, and clinical notes are open only to the clinicians involved.",
   },
 ] as const;

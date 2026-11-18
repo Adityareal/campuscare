@@ -79,7 +79,7 @@ export default async function HelpNowPage({ searchParams }: { searchParams: Prom
 
   const other: Locale = locale === "en" ? "hi" : "en";
   return (
-    <div lang={locale} className="min-h-[100dvh]">
+    <div lang={locale} className="flex-1">
       <header className="border-b border-line bg-canvas">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
           <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">

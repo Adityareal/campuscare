@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/classes";
-import { LANDING_NAV, PILOT_LABEL, PILOT_MAILTO, TRY_HREF, TRY_LABEL } from "@/components/landing/constants";
+import { LANDING_NAV, PILOT_LABEL, TRY_HREF, TRY_LABEL } from "@/components/landing/constants";
 
 /**
  * One-line navigation, 64px tall. `homeHref` is set when the visitor is signed in: the Sign in
  * button then becomes "Open CampusCare" and leads to that person's home.
  */
-export function LandingHeader({ homeHref }: { homeHref: string | null }) {
+export function LandingHeader({ homeHref, pilotHref }: { homeHref: string | null; pilotHref: string | null }) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-canvas/90 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 md:px-8">
@@ -33,9 +33,11 @@ export function LandingHeader({ homeHref }: { homeHref: string | null }) {
               <Link href="/sign-in" className={buttonClass("ghost", "sm")}>
                 Sign in
               </Link>
-              <a href={PILOT_MAILTO} className={buttonClass("primary", "sm", "max-sm:hidden")}>
-                {PILOT_LABEL}
-              </a>
+              {pilotHref ? (
+                <a href={pilotHref} className={buttonClass("primary", "sm", "max-sm:hidden")}>
+                  {PILOT_LABEL}
+                </a>
+              ) : null}
             </>
           )}
         </div>

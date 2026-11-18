@@ -7,7 +7,7 @@ import type { Locale } from "@prisma/client";
  */
 const en = {
   lang: { switchTo: "हिंदी", switchLabel: "Switch to Hindi" },
-  crisis: "If you are in danger now, call 112. For free mental health support at any hour, call Tele-MANAS on 14416.",
+  crisis: "If you are in danger now, call 112. Tele-MANAS (14416) describes its mental health support as free and available at any hour.",
   helpNow: "Need help right now?",
   signIn: {
     title: "Sign in",
@@ -72,7 +72,7 @@ const en = {
 
 const hi: typeof en = {
   lang: { switchTo: "English", switchLabel: "अंग्रेज़ी में देखें" },
-  crisis: "अगर आप अभी खतरे में हैं, तो 112 पर कॉल करें। किसी भी समय मुफ़्त मानसिक स्वास्थ्य सहायता के लिए टेली-मानस को 14416 पर कॉल करें।",
+  crisis: "अगर आप अभी खतरे में हैं, तो 112 पर कॉल करें। टेली-मानस (14416) अपनी मानसिक स्वास्थ्य सहायता को मुफ़्त और किसी भी समय उपलब्ध बताता है।",
   helpNow: "अभी मदद चाहिए?",
   signIn: {
     title: "साइन इन",

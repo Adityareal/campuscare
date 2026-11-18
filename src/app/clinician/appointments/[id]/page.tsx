@@ -72,10 +72,10 @@ export default async function ClinicianAppointmentPage({ params }: { params: Pro
             </ButtonLink>
             <p className="text-sm text-ink-3">
               {joinState === "open"
-                ? "The room is open. Sessions are never recorded."
+                ? "The room is open. CampusCare does not record sessions."
                 : joinState === "too_early"
-                  ? "The room opens 15 minutes before the start. Sessions are never recorded."
-                  : "The joining window has closed. Sessions are never recorded."}
+                  ? "The room opens 15 minutes before the start. CampusCare does not record sessions."
+                  : "The joining window has closed. CampusCare does not record sessions."}
             </p>
           </div>
         ) : null}

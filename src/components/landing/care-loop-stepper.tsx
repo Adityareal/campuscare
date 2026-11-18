@@ -183,7 +183,7 @@ export function CareLoopStepper() {
               <dd className="mt-1 text-ink-2">{step.does}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-ink-3">What the system never does</dt>
+              <dt className="text-sm font-medium text-ink-3">What the system does not do</dt>
               <dd className="mt-1 text-ink-2">{step.never}</dd>
             </div>
           </dl>

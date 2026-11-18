@@ -11,7 +11,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   }, [error]);
 
   return (
-    <main id="main" className="mx-auto flex min-h-[100dvh] max-w-xl flex-col justify-center gap-5 px-4 py-12">
+    <main id="main" className="mx-auto flex max-w-xl flex-1 flex-col justify-center gap-5 px-4 py-12">
       <p className="text-sm text-ink-3">CampusCare</p>
       <h1 className="text-2xl font-semibold tracking-tight">Something went wrong on our side</h1>
       <p className="max-w-[60ch] text-ink-2">
@@ -34,7 +34,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
         </ButtonLink>
       </div>
       <p className="text-sm text-ink-3">
-        If you are in danger now, call 112. For free mental health support at any hour, call Tele-MANAS on 14416. You can also{" "}
+        If you are in danger now, call 112. Tele-MANAS (14416) describes its mental health support as free and available at any hour. You can also{" "}
         <Link href="/help-now" className="font-medium text-accent-text underline underline-offset-4">
           see all crisis contacts
         </Link>

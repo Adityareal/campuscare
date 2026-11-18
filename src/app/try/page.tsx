@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { TryFlow } from "@/components/demo/try-flow";
 import { TryFooter, TryHeader, TryStyles } from "@/components/demo/try-chrome";
+import { demoModeEnabled } from "@/lib/auth/session";
 import { parseStage } from "@/lib/demo-flow/content";
 
 export const metadata: Metadata = {
@@ -32,7 +33,7 @@ export default async function TryPage({ searchParams }: { searchParams: Promise<
             real rules running on sample data. Nothing is saved or sent.
           </p>
           <div className="mt-8">
-            <TryFlow initialStage={initialStage} />
+            <TryFlow initialStage={initialStage} hasSignInDemo={demoModeEnabled()} />
           </div>
         </div>
       </main>

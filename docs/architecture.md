@@ -74,7 +74,7 @@ The database checks unique indexes and nothing else. The app code enforces the r
 11. **Consultations are never recorded.** `Consultation.recordingEnabled` stays false.
 12. **No AI in Phase 1.** Flags come from written, configurable rules (`src/lib/risk`). Copy must not
     claim that AI reads student answers.
-13. **Demo mode** (`DEMO_MODE=true`) enables one-click demo personas on `/sign-in`. It must be checked on
+13. **Demo mode** (`CAMPUSCARE_DEPLOYMENT=demo`) enables one-click demo personas on `/sign-in`. It must be checked on
     the server, and demo users carry `isDemo`. It must be off for any real pilot.
 
 ## Code conventions

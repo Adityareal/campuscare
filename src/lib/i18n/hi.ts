@@ -8,6 +8,11 @@ import type { Dictionary } from "@/lib/i18n/en";
  */
 export const hi: Dictionary = {
   meta: { languageName: "हिंदी", switchTo: "English" },
+  // Draft for review by a native-speaking clinician, like the rest of this file.
+  demoNotice: {
+    title: "डेमो साइट",
+    body: "यह काल्पनिक नमूना डेटा वाला डेमो है। कोई भी असली छात्र जानकारी दर्ज न करें। यहाँ स्वचालित रिमाइंडर और दोबारा एस्केलेशन नहीं चलते।",
+  },
   nav: { home: "होम", checkIn: "चेक-इन", care: "देखभाल", messages: "संदेश", privacy: "गोपनीयता", history: "इतिहास" },
   common: {
     getHelpNow: "अभी मदद पाएँ",
@@ -40,7 +45,7 @@ export const hi: Dictionary = {
     noUpdates: "कोई नया अपडेट नहीं।",
     supportTitle: "कैंपस पर सहायता",
     teamHours: "केयर टीम का समय: {hours}",
-    crisisLine: "अगर आप अभी खतरे में हैं, तो 112 पर कॉल करें। मुफ़्त, 24x7 मानसिक स्वास्थ्य सहायता के लिए टेली-मानस को 14416 पर कॉल करें।",
+    crisisLine: "अगर आप अभी खतरे में हैं, तो 112 पर कॉल करें। टेली-मानस (14416) अपनी मानसिक स्वास्थ्य सहायता को मुफ़्त और 24x7 उपलब्ध बताता है।",
     viewHistory: "अपना इतिहास देखें",
   },
   checkIn: {
@@ -104,7 +109,7 @@ export const hi: Dictionary = {
   urgent: {
     title: "अभी मदद पाएँ",
     danger: "अगर आप या कोई और तुरंत खतरे में है, तो अभी 112 पर कॉल करें।",
-    teleManas: "टेली-मानस: मुफ़्त और गोपनीय मानसिक स्वास्थ्य सहायता, दिन-रात, कई भारतीय भाषाओं में।",
+    teleManas: "टेली-मानस अपनी सेवा को मुफ़्त और गोपनीय मानसिक स्वास्थ्य सहायता बताता है, जो दिन-रात कई भारतीय भाषाओं में उपलब्ध है।",
     campusTeam: "कैंपस केयर टीम",
     notEmergency: "CampusCare एक आपातकालीन सेवा नहीं है और इसकी चौबीसों घंटे निगरानी नहीं होती।",
     requestUrgent: "कैंपस टीम से तुरंत संपर्क करने को कहें",

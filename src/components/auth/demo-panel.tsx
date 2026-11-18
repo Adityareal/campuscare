@@ -2,14 +2,13 @@
 
 import { useActionState } from "react";
 import { demoSignInAction } from "@/app/sign-in/actions";
-import { Notice } from "@/components/ui";
 import { ActionMessage } from "@/components/ui/action-message";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE } from "@/lib/action-state";
 
 export type DemoPersonaOption = { key: string; label: string; name: string };
 
-/** Shown only while DEMO_MODE is on. The server re-checks the mode and the demo flag on every use. */
+/** Shown only on a site marked CAMPUSCARE_DEPLOYMENT=demo. The server re-checks the setting and the demo flag on every use. */
 export function DemoPanel({ personas }: { personas: DemoPersonaOption[] }) {
   const [state, formAction] = useActionState(demoSignInAction, IDLE);
   return (
@@ -20,9 +19,6 @@ export function DemoPanel({ personas }: { personas: DemoPersonaOption[] }) {
         </h2>
         <p className="mt-1 text-sm text-ink-2">Sign in as a sample person to look around. These accounts use made-up data.</p>
       </div>
-      <Notice tone="warning" title="Never use demo mode with real data">
-        Demo mode skips the second step for sample staff accounts. Turn it off before any real student uses the system.
-      </Notice>
       <form action={formAction} className="grid gap-2">
         {personas.map((p) => (
           <SubmitButton key={p.key} name="persona" value={p.key} variant="secondary" className="w-full">

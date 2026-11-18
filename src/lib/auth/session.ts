@@ -6,6 +6,7 @@ import type { UserActor } from "@/lib/actor";
 import { now } from "@/lib/clock";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { db } from "@/lib/db";
+import { isDemoDeployment } from "@/lib/demo";
 
 export const SESSION_COOKIE = "cc_session";
 const STAFF_SESSION_HOURS = 8;
@@ -35,7 +36,7 @@ export function homeFor(role: Role): string {
 }
 
 export function demoModeEnabled(): boolean {
-  return process.env.DEMO_MODE === "true";
+  return isDemoDeployment();
 }
 
 async function setSessionCookie(token: string, expiresAt: Date): Promise<void> {

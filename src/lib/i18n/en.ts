@@ -1,6 +1,10 @@
 /** Student-facing copy. Staff surfaces are English-only in Phase 1. Placeholders use {name}. */
 export const en = {
   meta: { languageName: "English", switchTo: "हिंदी" },
+  demoNotice: {
+    title: "Demo site",
+    body: "This is a demo with made-up sample data. Do not enter real student information. Automatic reminders and repeat escalations do not run here.",
+  },
   nav: { home: "Home", checkIn: "Check in", care: "Care", messages: "Messages", privacy: "Privacy", history: "History" },
   common: {
     getHelpNow: "Get help now",
@@ -33,7 +37,7 @@ export const en = {
     noUpdates: "No new updates.",
     supportTitle: "Support on campus",
     teamHours: "Care team hours: {hours}",
-    crisisLine: "If you are in danger right now, call 112. For free 24x7 mental health support, call Tele-MANAS on 14416.",
+    crisisLine: "If you are in danger right now, call 112. Tele-MANAS (14416) describes its mental health support as free and open 24x7.",
     viewHistory: "See your history",
   },
   checkIn: {
@@ -97,7 +101,7 @@ export const en = {
   urgent: {
     title: "Get help now",
     danger: "If you or someone else is in immediate danger, call 112 now.",
-    teleManas: "Tele-MANAS: free, confidential mental health support, day and night, in many Indian languages.",
+    teleManas: "Tele-MANAS describes its service as free and confidential mental health support, day and night, in many Indian languages.",
     campusTeam: "Campus care team",
     notEmergency: "CampusCare is not an emergency service and is not monitored around the clock.",
     requestUrgent: "Ask the campus team to contact me urgently",

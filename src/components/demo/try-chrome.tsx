@@ -26,7 +26,7 @@ export function TryFooter() {
     <footer className="border-t border-line bg-surface">
       <div className="mx-auto grid w-full max-w-5xl gap-3 px-4 py-8 text-sm md:px-8">
         <p className="max-w-[62ch] text-ink-2">
-          CampusCare is not an emergency service. If you are in danger now, call 112. Tele-MANAS (14416) offers free mental health support at any hour.
+          CampusCare is not an emergency service. If you are in danger now, call 112. Tele-MANAS (14416) describes its mental health support as free and available at any hour.
         </p>
         <p className="max-w-[62ch] text-ink-3">This page is a simulation. It uses invented sample data, saves nothing and sends nothing.</p>
         <p>

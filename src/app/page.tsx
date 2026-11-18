@@ -10,6 +10,7 @@ import { Reveal } from "@/components/landing/reveal";
 import { Roles } from "@/components/landing/roles";
 import { Safeguards } from "@/components/landing/safeguards";
 import { getCurrentActor, homeFor } from "@/lib/auth/session";
+import { pilotContactMailto } from "@/lib/pilot-contact";
 
 export const metadata: Metadata = {
   title: { absolute: "CampusCare | Student well-being support for universities in India" },
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
 export default async function LandingPage() {
   const actor = await getCurrentActor();
   const homeHref = actor ? homeFor(actor.role) : null;
+  const pilotHref = pilotContactMailto();
 
   return (
     <>
@@ -30,9 +32,9 @@ export default async function LandingPage() {
       >
         Skip to content
       </a>
-      <LandingHeader homeHref={homeHref} />
+      <LandingHeader homeHref={homeHref} pilotHref={pilotHref} />
       <main id="main">
-        <Hero homeHref={homeHref} />
+        <Hero homeHref={homeHref} pilotHref={pilotHref} />
         <Reveal>
           <CareLoop />
         </Reveal>
@@ -49,10 +51,10 @@ export default async function LandingPage() {
           <India />
         </Reveal>
         <Reveal>
-          <Pilot />
+          <Pilot pilotHref={pilotHref} />
         </Reveal>
       </main>
-      <LandingFooter />
+      <LandingFooter pilotHref={pilotHref} />
     </>
   );
 }

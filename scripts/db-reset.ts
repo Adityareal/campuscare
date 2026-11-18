@@ -11,6 +11,7 @@ import "dotenv/config";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { createDbClient, databaseUrl } from "../src/lib/db";
+import { assertDemoDeployment } from "../src/lib/demo";
 
 /** Host and database name of a mongodb:// or mongodb+srv:// URL, without credentials. */
 function describeTarget(url: string): { host: string; database: string } {
@@ -20,6 +21,7 @@ function describeTarget(url: string): { host: string; database: string } {
 }
 
 async function main(): Promise<void> {
+  assertDemoDeployment("reset the database");
   const url = databaseUrl();
   const { host, database } = describeTarget(url);
   const flag = process.argv.indexOf("--confirm");

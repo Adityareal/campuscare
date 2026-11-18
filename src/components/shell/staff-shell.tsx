@@ -23,7 +23,6 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import type { Role } from "@prisma/client";
 import { signOutAction } from "@/app/_actions/shell";
-import { Notice } from "@/components/ui";
 import { buttonClass, cx } from "@/components/ui/classes";
 import { NavLink } from "@/components/ui/nav-link";
 import type { UserActor } from "@/lib/actor";
@@ -213,14 +212,6 @@ export async function StaffShell({ actor, children }: { actor: UserActor; childr
             {unread > 0 ? <span className="font-mono text-xs tabular-nums">{unread > 99 ? "99+" : unread}</span> : null}
           </Link>
         </header>
-
-        {actor.mfa === "demo_exempt" ? (
-          <div className="mx-auto max-w-6xl px-4 pt-4 md:px-8">
-            <Notice tone="warning" title="Demo account">
-              Two-step sign-in is skipped for demo accounts. Demo mode must be off before any real student data is used.
-            </Notice>
-          </div>
-        ) : null}
 
         <main id="main" className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
           {children}

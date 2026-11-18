@@ -4,7 +4,8 @@ import { hi } from "@/lib/i18n/hi";
 /**
  * Shown on every page while demo mode is on (rendered from the root layout only). English and
  * Hindi appear together because the layout cannot know a signed-out visitor's language. A plain
- * in-flow element, not fixed or sticky, so it never covers the crisis numbers on /help-now.
+ * in-flow element, not fixed or sticky, so it does not overlay anything. On /help-now the page
+ * moves itself above this notice (CSS order), so the crisis numbers stay on the first screen.
  */
 export function DemoNotice() {
   return (

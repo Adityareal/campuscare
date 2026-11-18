@@ -15,7 +15,7 @@ export default async function RulesPage() {
     <div className="grid max-w-5xl gap-6">
       <PageHeader
         title="Triage rules"
-        description="These written rules decide when a student's check-ins, questionnaires and help requests are flagged for human review. No AI model is involved, and a person always reviews a flag."
+        description="These written rules decide when a student's check-ins, questionnaires and help requests are flagged for human review. No AI model is involved, and flags are meant to be reviewed by a person."
       />
 
       <p className="text-sm text-ink-2">

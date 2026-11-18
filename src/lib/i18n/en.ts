@@ -160,7 +160,7 @@ export const en = {
       },
       CARE_TEAM_REVIEW: {
         title: "Let the campus care team review my trends",
-        body: "Counsellors can see your check-in and questionnaire results, and the system can flag patterns that suggest you may need support. A person always reviews a flag before anyone contacts you.",
+        body: "Counsellors can see your check-in and questionnaire results, and the system can flag patterns that suggest you may need support. A flag is meant to be reviewed by a person before anyone contacts you.",
       },
       AGGREGATE_ANALYTICS: {
         title: "Include me in anonymous campus statistics",
@@ -173,7 +173,7 @@ export const en = {
       "You: everything you enter.",
       "Campus care team: your requests, and your trends if you allow it.",
       "Clinicians you meet: their own consultation notes.",
-      "Institution administrators: only anonymous totals, never your answers.",
+      "Institution administrators: totals for groups, not your answers.",
     ],
     retention: "Your institution sets how long records are kept. To get a copy of your data or ask for deletion, contact the care team.",
     withdrawNote: "Turning a choice off stops new sharing from now on. It does not delete records already made.",

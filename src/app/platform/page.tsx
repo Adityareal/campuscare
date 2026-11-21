@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { CreateInstitutionForm } from "@/components/admin/forms";
-import { EmptyState, PageHeader, Panel, Table, Td, Th, When } from "@/components/ui";
+import { EmptyState, PageHeader, Panel, Table, Td, Th, When, buttonClass } from "@/components/ui";
 import { requirePlatformAdmin } from "@/lib/auth/guards";
 import { listInstitutions } from "@/lib/services/platform";
-import { createInstitutionAction } from "./actions";
+import { createInstitutionAction, openInstitutionAction } from "./actions";
 
 export const metadata: Metadata = { title: "Institutions" };
 
@@ -15,7 +15,7 @@ export default async function PlatformPage() {
     <>
       <PageHeader
         title="Institutions"
-        description="Tenants on this CampusCare installation. Platform administrators manage tenants only and have no access to any student or clinical record."
+        description="Tenants on this CampusCare installation. Platform administrators create institutions and can open one to use its administration pages: settings, reports, the audit log and student invite codes, and can suspend or reactivate administrator and support staff accounts. They cannot invite staff or reset access, and have no access to student records, cases, alerts, consultations or clinical notes. Opening an institution, and every action inside it, is recorded in that institution's audit log."
       />
 
       <div className="grid gap-6">
@@ -29,6 +29,7 @@ export default async function PlatformPage() {
                 <Th>Created</Th>
                 <Th>Students</Th>
                 <Th>Staff</Th>
+                <Th>Open</Th>
               </tr>
             </thead>
             <tbody>
@@ -45,6 +46,14 @@ export default async function PlatformPage() {
                   </Td>
                   <Td className="font-mono tabular-nums">{i.students.toLocaleString("en-IN")}</Td>
                   <Td className="font-mono tabular-nums">{i.staff.toLocaleString("en-IN")}</Td>
+                  <Td>
+                    <form action={openInstitutionAction}>
+                      <input type="hidden" name="institutionId" value={i.id} />
+                      <button type="submit" className={buttonClass("secondary", "sm")}>
+                        Open<span className="sr-only"> {i.name}</span>
+                      </button>
+                    </form>
+                  </Td>
                 </tr>
               ))}
             </tbody>

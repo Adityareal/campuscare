@@ -25,7 +25,11 @@ export function requireClinician(): Promise<UserActor> {
 }
 
 export function requireInstitutionAdmin(): Promise<UserActor> {
-  return requireActor(["INSTITUTION_ADMIN"]);
+  return requireActor(["INSTITUTION_ADMIN", "PLATFORM_ADMIN"]).then((actor) => {
+    // A platform administrator reaches the administration pages only with an institution picked.
+    if (actor.role === "PLATFORM_ADMIN" && !actor.actingInInstitution) redirect("/platform");
+    return actor;
+  });
 }
 
 export function requirePlatformAdmin(): Promise<UserActor> {

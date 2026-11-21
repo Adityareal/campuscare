@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { RowActionForm } from "@/components/admin/forms";
-import { ButtonLink, EmptyState, PageHeader, Panel, Table, Td, Th, When, buttonClass, cx, inputClass } from "@/components/ui";
+import { ButtonLink, EmptyState, Notice, PageHeader, Panel, Table, Td, Th, When, buttonClass, cx, inputClass } from "@/components/ui";
 import { requireInstitutionAdmin } from "@/lib/auth/guards";
-import { listAuditLog } from "@/lib/services/admin";
+import { listAuditLog, PLATFORM_VISIBLE_AUDIT_PREFIXES } from "@/lib/services/admin";
 import { verifyChainAction } from "./actions";
 
 export const metadata: Metadata = { title: "Audit log" };
@@ -20,6 +20,7 @@ const ACTION_FILTERS = [
   { value: "case.", label: "Cases" },
   { value: "clinical_note.", label: "Clinical note access" },
   { value: "audit.", label: "Audit checks" },
+  { value: "platform.", label: "Platform administrator access" },
 ];
 
 function first(v: string | string[] | undefined): string | undefined {
@@ -39,6 +40,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const beforeRaw = Number(first(sp.before));
   const before = Number.isInteger(beforeRaw) && beforeRaw > 0 ? beforeRaw : null;
   const { entries, nextBefore } = await listAuditLog(actor, { before, action: action || null });
+  const platform = actor.role === "PLATFORM_ADMIN";
+  const filters = platform ? ACTION_FILTERS.filter((f) => !f.value || PLATFORM_VISIBLE_AUDIT_PREFIXES.some((p) => p === f.value)) : ACTION_FILTERS;
 
   const nextHref = nextBefore ? `/admin/audit?${new URLSearchParams({ ...(action ? { action } : {}), before: String(nextBefore) }).toString()}` : null;
   const firstHref = `/admin/audit${action ? `?${new URLSearchParams({ action }).toString()}` : ""}`;
@@ -58,13 +61,17 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
           <RowActionForm action={verifyChainAction} fields={{}} label="Verify the audit log" pendingLabel="Verifying" variant="primary" />
         </Panel>
 
+        {platform ? (
+          <Notice tone="info">Care and student activity entries are not shown to platform administrators, and student ids are removed from the entries that remain.</Notice>
+        ) : null}
+
         <form method="get" action="/admin/audit" className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <div className="grid gap-2 sm:w-80">
             <label htmlFor="audit-action" className="text-sm font-medium">
               Show
             </label>
             <select id="audit-action" name="action" defaultValue={action} className={cx(inputClass, "pr-8")}>
-              {ACTION_FILTERS.map((f) => (
+              {filters.map((f) => (
                 <option key={f.value} value={f.value}>
                   {f.label}
                 </option>

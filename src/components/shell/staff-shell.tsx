@@ -22,6 +22,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import type { Role } from "@prisma/client";
+import { closeInstitutionAction } from "@/app/platform/actions";
 import { signOutAction } from "@/app/_actions/shell";
 import { buttonClass, cx } from "@/components/ui/classes";
 import { NavLink } from "@/components/ui/nav-link";
@@ -42,8 +43,24 @@ const CARE_WORKSPACE: NavSection = {
   ],
 };
 
-/** Route map for staff. Every href here is a page some slice of the app must implement. */
-export function navFor(role: Role): NavSection[] {
+const INSTITUTION_ADMIN_NAV: NavSection = {
+  title: "Institution",
+  items: [
+    { href: "/admin", label: "Overview", Icon: ChartLineUpIcon, exact: true },
+    { href: "/admin/departments", label: "Departments", Icon: BuildingsIcon },
+    { href: "/admin/interventions", label: "Interventions", Icon: HandHeartIcon },
+    { href: "/admin/reports", label: "Reports", Icon: FileTextIcon },
+    { href: "/admin/users", label: "People", Icon: UsersThreeIcon },
+    { href: "/admin/settings", label: "Settings", Icon: GearSixIcon },
+    { href: "/admin/audit", label: "Audit log", Icon: ScrollIcon },
+  ],
+};
+
+const PLATFORM_NAV: NavSection = { title: "Platform", items: [{ href: "/platform", label: "Institutions", Icon: BuildingOfficeIcon, exact: true }] };
+
+/** Route map for staff. Every href here is a page some slice of the app must implement.
+ * `acting` is true for a platform administrator who has picked an institution. */
+export function navFor(role: Role, acting = false): NavSection[] {
   switch (role) {
     case "COUNSELLOR":
       return [CARE_WORKSPACE];
@@ -60,22 +77,9 @@ export function navFor(role: Role): NavSection[] {
         CARE_WORKSPACE,
       ];
     case "INSTITUTION_ADMIN":
-      return [
-        {
-          title: "Institution",
-          items: [
-            { href: "/admin", label: "Overview", Icon: ChartLineUpIcon, exact: true },
-            { href: "/admin/departments", label: "Departments", Icon: BuildingsIcon },
-            { href: "/admin/interventions", label: "Interventions", Icon: HandHeartIcon },
-            { href: "/admin/reports", label: "Reports", Icon: FileTextIcon },
-            { href: "/admin/users", label: "People", Icon: UsersThreeIcon },
-            { href: "/admin/settings", label: "Settings", Icon: GearSixIcon },
-            { href: "/admin/audit", label: "Audit log", Icon: ScrollIcon },
-          ],
-        },
-      ];
+      return [INSTITUTION_ADMIN_NAV];
     case "PLATFORM_ADMIN":
-      return [{ title: "Platform", items: [{ href: "/platform", label: "Institutions", Icon: BuildingOfficeIcon, exact: true }] }];
+      return acting ? [INSTITUTION_ADMIN_NAV, PLATFORM_NAV] : [PLATFORM_NAV];
     default:
       return [];
   }
@@ -157,8 +161,9 @@ export async function StaffShell({ actor, children }: { actor: UserActor; childr
     db.notification.count({ where: { userId: actor.userId, readAt: null } }),
     actor.institutionId ? db.institution.findUnique({ where: { id: actor.institutionId }, select: { name: true } }) : null,
   ]);
-  const sections = navFor(actor.role);
-  const home = sections[0]?.items[0]?.href ?? "/account";
+  const acting = actor.role === "PLATFORM_ADMIN" && !!actor.actingInInstitution;
+  const sections = navFor(actor.role, acting);
+  const home = acting ? "/platform" : (sections[0]?.items[0]?.href ?? "/account");
 
   return (
     <div className="min-h-[100dvh] lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
@@ -212,6 +217,24 @@ export async function StaffShell({ actor, children }: { actor: UserActor; childr
             {unread > 0 ? <span className="font-mono text-xs tabular-nums">{unread > 99 ? "99+" : unread}</span> : null}
           </Link>
         </header>
+
+        {acting ? (
+          <div role="region" aria-label="Institution opened by a platform administrator" className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-accent-soft px-4 py-2 text-sm md:px-8">
+            <p className="text-accent-text">
+              Platform administrator viewing <strong>{institution?.name ?? "this institution"}</strong>. Student records and care work are not available here, and your actions are logged in this institution&apos;s audit log.
+            </p>
+            <div className="ml-auto flex items-center gap-3">
+              <Link href="/platform" className="underline underline-offset-2">
+                Switch institution
+              </Link>
+              <form action={closeInstitutionAction}>
+                <button type="submit" className="underline underline-offset-2">
+                  Back to platform
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : null}
 
         <main id="main" className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
           {children}

@@ -128,8 +128,22 @@ export const getCurrentActor = cache(async (): Promise<UserActor | null> => {
   const u = session.user;
   const mfa: NonNullable<UserActor["mfa"]> =
     u.role === "STUDENT" ? "not_required" : u.mfaEnabledAt ? "enrolled" : u.isDemo && demoModeEnabled() ? "demo_exempt" : "missing";
-  return { kind: "user", userId: u.id, role: u.role, institutionId: u.institutionId, name: u.name, locale: u.locale, mfa, isDemo: u.isDemo };
+  const base: UserActor = { kind: "user", userId: u.id, role: u.role, institutionId: u.institutionId, name: u.name, locale: u.locale, mfa, isDemo: u.isDemo };
+  // Only a platform administrator reads the picked institution, and only if it still exists.
+  if (u.role !== "PLATFORM_ADMIN" || !session.activeInstitutionId) return base;
+  const picked = await db.institution.findUnique({ where: { id: session.activeInstitutionId }, select: { id: true } });
+  if (!picked) {
+    await db.session.update({ where: { id: session.id }, data: { activeInstitutionId: null } });
+    return base;
+  }
+  return { ...base, institutionId: picked.id, actingInInstitution: true };
 });
+
+/** The hash of the signed-in browser's session token, for the open and close actions. */
+export async function currentSessionTokenHash(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? sha256(token) : null;
+}
 
 /** For pages, layouts and server actions: a signed-in actor with one of the given roles, or a
  * redirect. Staff without a second factor are sent to enrol one first. */

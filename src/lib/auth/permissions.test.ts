@@ -90,3 +90,33 @@ describe("assertCan and tenantOf", () => {
     expectDomainErrorSync(() => tenantOf(user("PLATFORM_ADMIN", null)), "FORBIDDEN");
   });
 });
+
+describe("platform administrators inside an institution", () => {
+  const ALLOWED: Permission[] = ["analytics.aggregate.read", "report.generate", "institution.manage", "user.manage", "audit.read", "rules.read"];
+  const ALL = Object.keys({
+    ...Object.fromEntries(ROLES.flatMap((r) => permissionsFor(r).map((p) => [p, true]))),
+  }) as Permission[];
+
+  it("hold only tenant.manage without an institution picked", () => {
+    const actor = user("PLATFORM_ADMIN", null);
+    expect(ALL.filter((p) => can(actor, p))).toEqual(["tenant.manage"]);
+  });
+
+  it("hold tenant.manage plus exactly the six administration permissions once one is picked", () => {
+    const actor: UserActor = { ...user("PLATFORM_ADMIN"), actingInInstitution: true };
+    expect(ALL.filter((p) => can(actor, p)).sort()).toEqual(["tenant.manage", ...ALLOWED].sort());
+    for (const p of ALL.filter((x) => x !== "tenant.manage" && !ALLOWED.includes(x))) expect(can(actor, p), p).toBe(false);
+  });
+
+  it("do not gain permissions from the flag without an institution id, and other roles ignore it", () => {
+    expect(can({ ...user("PLATFORM_ADMIN", null), actingInInstitution: true }, "user.manage")).toBe(false);
+    for (const role of ["STUDENT", "COUNSELLOR", "CLINICIAN", "SUPPORT_STAFF"] as Role[]) {
+      const a: UserActor = { ...user(role), actingInInstitution: true };
+      expect(ALL.filter((p) => can(a, p)).sort()).toEqual(permissionsFor(role).sort());
+    }
+  });
+
+  it("leave the role matrix unchanged", () => {
+    expect(permissionsFor("PLATFORM_ADMIN")).toEqual(["tenant.manage"]);
+  });
+});

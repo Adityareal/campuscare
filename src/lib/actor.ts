@@ -11,6 +11,9 @@ export type UserActor = {
   /** Second-factor state. Staff without an enrolled factor are sent to enrol before anything else. */
   mfa?: "not_required" | "enrolled" | "demo_exempt" | "missing";
   isDemo?: boolean;
+  /** Set only for a platform administrator who has picked an institution (see Session.activeInstitutionId).
+   * `institutionId` then holds that institution. Never set from anything the browser sends. */
+  actingInInstitution?: boolean;
 };
 
 /** Automated processes. They can create alerts and reminders but can never close, resolve or

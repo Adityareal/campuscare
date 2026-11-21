@@ -5,7 +5,9 @@ import { fail } from "@/lib/errors";
 /**
  * Role capabilities (PRD section 11). Role checks are only the first gate: services also
  * enforce institution scope, student consent and record-level rules.
- * Platform administrators deliberately hold no clinical or student-record permission.
+ * Platform administrators deliberately hold no clinical or student-record permission. While an
+ * institution is picked they also hold the administration permissions in PLATFORM_IN_INSTITUTION
+ * for that institution only, and still nothing clinical.
  */
 const MATRIX = {
   "checkin.create": ["STUDENT"],
@@ -40,8 +42,25 @@ export function roleCan(role: Role, permission: Permission): boolean {
   return (MATRIX[permission] as readonly Role[]).includes(role);
 }
 
+/**
+ * What a platform administrator additionally holds while an institution is picked, and only
+ * inside that institution. This is a list of its own, not "whatever institution admins hold",
+ * so a permission given to institution administrators later does not reach platform
+ * administrators. It contains nothing clinical and no student-record permission.
+ */
+const PLATFORM_IN_INSTITUTION: ReadonlySet<Permission> = new Set<Permission>([
+  "analytics.aggregate.read",
+  "report.generate",
+  "institution.manage",
+  "user.manage",
+  "audit.read",
+  "rules.read",
+]);
+
 export function can(actor: Actor | null | undefined, permission: Permission): actor is UserActor {
-  return !!actor && actor.kind === "user" && roleCan(actor.role, permission);
+  if (!actor || actor.kind !== "user") return false;
+  if (roleCan(actor.role, permission)) return true;
+  return actor.role === "PLATFORM_ADMIN" && actor.actingInInstitution === true && !!actor.institutionId && PLATFORM_IN_INSTITUTION.has(permission);
 }
 
 export function assertCan(actor: Actor, permission: Permission): asserts actor is UserActor {

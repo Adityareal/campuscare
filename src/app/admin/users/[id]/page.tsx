@@ -94,13 +94,17 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
             <div className="mt-5 flex flex-wrap items-start gap-4 border-t border-line pt-4">
               {p.status === "ACTIVE" ? (
                 <>
-                  <RowActionForm
-                    action={resetAccessAction}
-                    fields={{ userId: p.id }}
-                    label="Reset access"
-                    pendingLabel="Resetting"
-                    confirmText={`Reset access for ${p.name}? They will be signed out, their two-step sign-in will be removed, and you will get a new one-time link to give them.`}
-                  />
+                  {actor.role === "PLATFORM_ADMIN" ? (
+                    <p className="text-sm text-ink-3">Platform administrators cannot reset access. Ask the institution&apos;s own administrator.</p>
+                  ) : (
+                    <RowActionForm
+                      action={resetAccessAction}
+                      fields={{ userId: p.id }}
+                      label="Reset access"
+                      pendingLabel="Resetting"
+                      confirmText={`Reset access for ${p.name}? They will be signed out, their two-step sign-in will be removed, and you will get a new one-time link to give them.`}
+                    />
+                  )}
                   <RowActionForm
                     action={suspendUserAction}
                     fields={{ userId: p.id }}

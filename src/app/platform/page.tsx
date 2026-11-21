@@ -15,7 +15,7 @@ export default async function PlatformPage() {
     <>
       <PageHeader
         title="Institutions"
-        description="Tenants on this CampusCare installation. Platform administrators create institutions and can open one to use its administration pages: settings, staff accounts, reports and the audit log. They have no access to student records, cases, alerts, consultations or clinical notes. Opening an institution, and every action inside it, is recorded in that institution's audit log."
+        description="Tenants on this CampusCare installation. Platform administrators create institutions and can open one to use its administration pages: settings, reports, the audit log and student invite codes, and can suspend or reactivate administrator and support staff accounts. They cannot invite staff or reset access, and have no access to student records, cases, alerts, consultations or clinical notes. Opening an institution, and every action inside it, is recorded in that institution's audit log."
       />
 
       <div className="grid gap-6">

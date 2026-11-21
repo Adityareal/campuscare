@@ -12,8 +12,9 @@ import { emailSchema, issueSetPasswordLink, parseInput, personNameSchema, type O
  * Platform tenant management. Platform administrators create and list institutions, and can
  * open one (openInstitution / closeInstitution) to use its administration pages with the
  * limited permission list in PLATFORM_IN_INSTITUTION (permissions.ts). They hold no
- * student-record, care or clinical permission and cannot manage counsellor, clinician or
- * student accounts. Opening, switching and closing are written to the institution's audit chain.
+ * student-record, care or clinical permission. They never receive a set-password link, and
+ * can suspend or reactivate only institution administrator and support staff accounts.
+ * Opening, switching and closing are written to the institution's audit chain.
  */
 
 export const DEFAULT_CARE_TEAM_HOURS = "Monday to Saturday, 9 am to 6 pm";

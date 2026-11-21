@@ -53,10 +53,14 @@ export const emailSchema = z
   .regex(EMAIL_RE, "Enter a valid email address.");
 export const personNameSchema = z.string().trim().min(2, "Enter a name of at least 2 characters.").max(120, "Name is too long.");
 
-/** A platform administrator inside an institution is an outside party: it manages only
- * institution administrator and support staff accounts, never counsellors, clinicians or
- * students, because a set-password link for one of those accounts would open student records. */
+/** A platform administrator inside an institution is an outside party. It never receives a
+ * set-password link (inviteStaff, resetAccess refuse it for every role), because that link is a
+ * real login: an institution administrator's account lists students and can invite counsellors.
+ * It may suspend and reactivate institution administrator and support staff accounts only. */
 const PLATFORM_MANAGED_ROLES: readonly Role[] = ["INSTITUTION_ADMIN", "SUPPORT_STAFF"];
+
+const PLATFORM_NO_LINK_MESSAGE =
+  "Platform administrators cannot create or reset sign-in links. Ask the institution's own administrator.";
 
 function assertManageableRole(actor: UserActor, role: Role): void {
   if (actor.role === "PLATFORM_ADMIN" && !PLATFORM_MANAGED_ROLES.includes(role)) {
@@ -228,7 +232,7 @@ export async function inviteStaff(actor: UserActor, input: InviteStaffInput): Pr
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   const data = parseInput(InviteStaffSchema, input);
-  assertManageableRole(actor, data.role);
+  if (actor.role === "PLATFORM_ADMIN") fail("FORBIDDEN", PLATFORM_NO_LINK_MESSAGE);
   if (data.professional && data.role !== "COUNSELLOR" && data.role !== "CLINICIAN") {
     fail("VALIDATION", "A professional profile can only be added for counsellors and clinicians.");
   }
@@ -394,6 +398,7 @@ export async function resetAccess(actor: UserActor, userId: string): Promise<One
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   if (userId === actor.userId) fail("VALIDATION", "Ask another administrator to reset your own access.");
+  if (actor.role === "PLATFORM_ADMIN") fail("FORBIDDEN", PLATFORM_NO_LINK_MESSAGE);
   return runTx(async (tx) => {
     const user = await userInTenant(tx, actor, institutionId, userId);
     if (user.status !== "ACTIVE") fail("INVALID_TRANSITION", "Reactivate this account before resetting its access.");

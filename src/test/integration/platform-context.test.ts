@@ -6,6 +6,7 @@ import { setClock } from "@/lib/clock";
 import {
   countStudents,
   createDepartment,
+  createStudentInvite,
   getAccessHistory,
   getAdminSettings,
   getPerson,
@@ -128,16 +129,28 @@ describe("account actions", () => {
     }
   });
 
-  it("still manages institution administrator and support staff accounts", async () => {
-    await inviteStaff(inA, { name: "Second Admin", email: "second.admin@invite.example", role: "INSTITUTION_ADMIN" });
-    await expect(resetAccess(inA, supportId)).resolves.toHaveProperty("link");
+  it("refuses every staff invitation and every access reset, so no set-password link is returned", async () => {
+    for (const role of ["COUNSELLOR", "CLINICIAN", "INSTITUTION_ADMIN", "SUPPORT_STAFF"] as const) {
+      await expectDomainError(inviteStaff(inA, { name: "New Person", email: `${role}@invite.example`, role }), "FORBIDDEN");
+    }
+    await expectDomainError(resetAccess(inA, adminA.userId), "FORBIDDEN");
+    await expectDomainError(resetAccess(inA, supportId), "FORBIDDEN");
+    expect(await t.db.user.count({ where: { email: { endsWith: "@invite.example" } } })).toBe(0);
+  });
+
+  it("still suspends and reactivates institution administrator and support staff accounts, and creates student invite codes", async () => {
+    await suspendUser(inA, adminA.userId);
+    await reactivateUser(inA, adminA.userId);
     await suspendUser(inA, supportId);
     await reactivateUser(inA, supportId);
+    await expect(createStudentInvite(inA, { maxUses: 5, expiresInDays: 7 })).resolves.toHaveProperty("code");
   });
 
   it("leaves the institution administrator's own powers unchanged", async () => {
     await expect(suspendUser(adminA, counsellorId)).resolves.toBeUndefined();
     await reactivateUser(adminA, counsellorId);
+    await expect(inviteStaff(adminA, { name: "New Counsellor", email: "new.counsellor@invite.example", role: "COUNSELLOR" })).resolves.toHaveProperty("link");
+    await expect(resetAccess(adminA, supportId)).resolves.toHaveProperty("link");
   });
 });
 

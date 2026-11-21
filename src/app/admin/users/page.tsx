@@ -239,12 +239,16 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           <>
             <SearchForm tab={tab} query={query} />
             <StaffTable people={await listPeople(actor, { role: "STAFF", query })} selfId={actor.userId} />
-            <Panel
-              title="Invite a staff member"
-              description="Creates the account without a password and gives you a one-time link. The person sets a password and two-step sign-in before they can use CampusCare."
-            >
-              <InviteStaffForm action={inviteStaffAction} />
-            </Panel>
+            {actor.role === "PLATFORM_ADMIN" ? (
+              <Notice tone="info">Platform administrators cannot invite staff or reset access. The institution&apos;s own administrator does that.</Notice>
+            ) : (
+              <Panel
+                title="Invite a staff member"
+                description="Creates the account without a password and gives you a one-time link. The person sets a password and two-step sign-in before they can use CampusCare."
+              >
+                <InviteStaffForm action={inviteStaffAction} />
+              </Panel>
+            )}
           </>
         ) : null}
 

@@ -53,9 +53,21 @@ export const emailSchema = z
   .regex(EMAIL_RE, "Enter a valid email address.");
 export const personNameSchema = z.string().trim().min(2, "Enter a name of at least 2 characters.").max(120, "Name is too long.");
 
-async function userInTenant(client: DbLike, institutionId: string, userId: string) {
+/** A platform administrator inside an institution is an outside party: it manages only
+ * institution administrator and support staff accounts, never counsellors, clinicians or
+ * students, because a set-password link for one of those accounts would open student records. */
+const PLATFORM_MANAGED_ROLES: readonly Role[] = ["INSTITUTION_ADMIN", "SUPPORT_STAFF"];
+
+function assertManageableRole(actor: UserActor, role: Role): void {
+  if (actor.role === "PLATFORM_ADMIN" && !PLATFORM_MANAGED_ROLES.includes(role)) {
+    fail("FORBIDDEN", "Platform administrators cannot manage counsellor, clinician or student accounts. Ask the institution's own administrator.");
+  }
+}
+
+async function userInTenant(client: DbLike, actor: UserActor, institutionId: string, userId: string) {
   const user = await client.user.findFirst({ where: { id: userId, institutionId } });
   if (!user) fail("NOT_FOUND", "Person not found.");
+  assertManageableRole(actor, user.role);
   return user;
 }
 
@@ -136,12 +148,14 @@ export async function listPeople(
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   const q = filter.query?.trim().slice(0, 100);
+  // Platform administrators see staff only; students are reached through a count (countStudents).
+  if (actor.role === "PLATFORM_ADMIN" && filter.role === "STUDENT") return [];
   const roleWhere =
     filter.role === "STAFF"
       ? { role: { in: ["COUNSELLOR", "CLINICIAN", "INSTITUTION_ADMIN", "SUPPORT_STAFF"] as Role[] } }
       : filter.role
         ? { role: filter.role }
-        : { role: { not: "PLATFORM_ADMIN" as Role } };
+        : { role: { notIn: (actor.role === "PLATFORM_ADMIN" ? ["PLATFORM_ADMIN", "STUDENT"] : ["PLATFORM_ADMIN"]) as Role[] } };
   const rows = await db.user.findMany({
     where: {
       institutionId,
@@ -161,8 +175,14 @@ export async function getPerson(actor: UserActor, userId: string): Promise<Perso
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   const row = await db.user.findFirst({ where: { id: userId, institutionId }, select: personSelect });
-  if (!row) fail("NOT_FOUND", "Person not found.");
+  if (!row || (actor.role === "PLATFORM_ADMIN" && row.role === "STUDENT")) fail("NOT_FOUND", "Person not found.");
   return toPerson(row);
+}
+
+/** How many students the institution has. Platform administrators see this instead of names. */
+export async function countStudents(actor: UserActor): Promise<number> {
+  assertCan(actor, "user.manage");
+  return db.user.count({ where: { institutionId: tenantOf(actor), role: "STUDENT" } });
 }
 
 // ---------- Staff invitations ----------
@@ -208,6 +228,7 @@ export async function inviteStaff(actor: UserActor, input: InviteStaffInput): Pr
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   const data = parseInput(InviteStaffSchema, input);
+  assertManageableRole(actor, data.role);
   if (data.professional && data.role !== "COUNSELLOR" && data.role !== "CLINICIAN") {
     fail("VALIDATION", "A professional profile can only be added for counsellors and clinicians.");
   }
@@ -343,7 +364,7 @@ export async function suspendUser(actor: UserActor, userId: string): Promise<voi
   const institutionId = tenantOf(actor);
   if (userId === actor.userId) fail("VALIDATION", "You cannot suspend your own account.");
   await runTx(async (tx) => {
-    const user = await userInTenant(tx, institutionId, userId);
+    const user = await userInTenant(tx, actor, institutionId, userId);
     if (user.status === "SUSPENDED") fail("INVALID_TRANSITION", "This account is already suspended.");
     await tx.user.update({ where: { id: user.id }, data: { status: "SUSPENDED" } });
     const { count } = await tx.session.deleteMany({ where: { userId: user.id } });
@@ -360,7 +381,7 @@ export async function reactivateUser(actor: UserActor, userId: string): Promise<
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
   await runTx(async (tx) => {
-    const user = await userInTenant(tx, institutionId, userId);
+    const user = await userInTenant(tx, actor, institutionId, userId);
     if (user.status === "ACTIVE") fail("INVALID_TRANSITION", "This account is already active.");
     await tx.user.update({ where: { id: user.id }, data: { status: "ACTIVE", failedLogins: 0, lockedUntil: null } });
     await recordAudit(tx, actor, { action: "user.reactivate", entityType: "User", entityId: user.id, metadata: { role: user.role } });
@@ -374,7 +395,7 @@ export async function resetAccess(actor: UserActor, userId: string): Promise<One
   const institutionId = tenantOf(actor);
   if (userId === actor.userId) fail("VALIDATION", "Ask another administrator to reset your own access.");
   return runTx(async (tx) => {
-    const user = await userInTenant(tx, institutionId, userId);
+    const user = await userInTenant(tx, actor, institutionId, userId);
     if (user.status !== "ACTIVE") fail("INVALID_TRANSITION", "Reactivate this account before resetting its access.");
     const t = now();
     const { count } = await tx.session.deleteMany({ where: { userId: user.id } });
@@ -466,6 +487,9 @@ export async function verifyProfessional(
 ): Promise<void> {
   assertCan(actor, "user.manage");
   const institutionId = tenantOf(actor);
+  if (actor.role === "PLATFORM_ADMIN") {
+    fail("FORBIDDEN", "Platform administrators cannot verify counsellors or clinicians. Ask the institution's own administrator.");
+  }
   const data = parseInput(VerifySchema, input);
   await runTx(async (tx) => {
     const profile = await tx.professionalProfile.findFirst({ where: { userId, institutionId } });
@@ -678,11 +702,14 @@ export async function listAuditLog(
   const institutionId = tenantOf(actor);
   const action = opts.action?.trim().slice(0, 80);
   const before = opts.before && Number.isInteger(opts.before) && opts.before > 0 ? opts.before : null;
+  const platform = actor.role === "PLATFORM_ADMIN";
   const rows = await db.auditLog.findMany({
     where: {
       chain: institutionId,
       ...(before ? { seq: { lt: before } } : {}),
       ...(action ? { action: { startsWith: action } } : {}),
+      // Platform administrators see administration entries only: no care or clinical activity and nothing a student did.
+      ...(platform ? { actorRole: { not: "STUDENT" }, OR: PLATFORM_VISIBLE_AUDIT_PREFIXES.map((p) => ({ action: { startsWith: p } })) } : {}),
     },
     orderBy: { seq: "desc" },
     take: AUDIT_PAGE_SIZE + 1,
@@ -690,10 +717,35 @@ export async function listAuditLog(
   });
   const page = rows.slice(0, AUDIT_PAGE_SIZE);
   const last = page[page.length - 1];
+  const entries = page.map((r) => ({ ...r, metadata: (r.metadata as AuditMetadata | null) ?? null }));
   return {
-    entries: page.map((r) => ({ ...r, metadata: (r.metadata as AuditMetadata | null) ?? null })),
+    entries: platform ? await withoutStudentIds(institutionId, entries) : entries,
     nextBefore: rows.length > AUDIT_PAGE_SIZE && last ? last.seq : null,
   };
+}
+
+/** Audit actions a platform administrator may read. Anything not listed here, including actions
+ * added later, stays hidden from them. */
+export const PLATFORM_VISIBLE_AUDIT_PREFIXES = ["auth.", "user.", "invite.", "institution.", "department.", "report.", "audit.", "tenant.", "platform.", "professional.", "rules."] as const;
+
+/** Removes the ids of students from entries a platform administrator reads. */
+async function withoutStudentIds(institutionId: string, entries: AuditEntry[]): Promise<AuditEntry[]> {
+  const candidates = new Set<string>();
+  for (const e of entries) {
+    if (e.entityId) candidates.add(e.entityId);
+    for (const v of Object.values(e.metadata ?? {})) if (typeof v === "string") candidates.add(v);
+  }
+  const found = candidates.size
+    ? await db.user.findMany({ where: { institutionId, role: "STUDENT", id: { in: [...candidates] } }, select: { id: true } })
+    : [];
+  const students = new Set(found.map((s) => s.id));
+  return entries.map((e) => ({
+    ...e,
+    entityId: e.entityId && students.has(e.entityId) ? null : e.entityId,
+    metadata: e.metadata
+      ? Object.fromEntries(Object.entries(e.metadata).filter(([k, v]) => k !== "studentId" && !(typeof v === "string" && students.has(v))))
+      : null,
+  }));
 }
 
 /** Recomputes the institution's hash chain. The check itself is recorded afterwards. */

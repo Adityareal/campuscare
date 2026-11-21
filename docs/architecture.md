@@ -58,7 +58,7 @@ The database checks unique indexes and nothing else. The app code enforces the r
    assessments, case notes, messages or clinical notes. Every aggregate cell covering fewer than
    `settings.minCohortSize` students (floor 5) is suppressed, with complementary suppression so a
    hidden cell cannot be recovered by subtracting from a total.
-6. **Platform admins manage tenants only.** No permission to any student or clinical record.
+6. **Platform admins manage tenants and can open one.** With an institution picked (held on the server-side session, set only by the open action on `/platform`) they get that institution's administration permissions (settings, staff accounts, reports, audit log) and nothing clinical: no student record, case, alert, consultation or clinical note, and no management of counsellor, clinician or student accounts. Care and student entries and student ids are hidden from their audit and people views. Opening, switching and closing, and every action inside, are written to that institution's audit chain under the platform admin.
 7. **Clinical notes** are readable only by clinicians, and only by the author or a clinician who has or
    had an appointment with that student. Every read is audited. They never appear in analytics,
    reports or exports.
@@ -117,6 +117,7 @@ export async function doThing(actor: UserActor, id: string, input: Input): Promi
 
 - Pages are Server Components. Call the guard first: `requireStudent()`, `requireCareTeam()`,
   `requireClinician()`, `requireInstitutionAdmin()`, `requirePlatformAdmin()` (`@/lib/auth/guards`).
+  `requireInstitutionAdmin()` also admits a platform admin with an institution picked, and sends one without to `/platform`.
 - Next 16: `params` and `searchParams` are Promises: `const { id } = await params;`.
 - Map `DomainError` code `NOT_FOUND` to `notFound()` in pages.
 - Server Actions live in an `actions.ts` next to the page, start with `"use server"`, re-check the
@@ -172,7 +173,7 @@ shared: do not edit them. New student strings go in a per-area file, for example
 | Student app | `/student`, `/student/onboarding`, `/student/check-in`, `/student/assessments/[id]`, `/student/help`, `/student/history`, `/student/privacy`, `/help-now` | `src/components/student`, `services/student-home.ts`, `checkins.ts`, `assessments.ts`, `consent.ts`, `help.ts`, `i18n/student.ts` |
 | Care workspace | `/counsellor`, `/counsellor/alerts`, `/counsellor/alerts/[id]`, `/counsellor/cases`, `/counsellor/cases/[id]`, `/counsellor/students/[id]`, `/counsellor/follow-ups`, `/student/messages` | `src/components/care`, `services/alerts.ts`, `cases.ts`, `followups.ts`, `messages.ts`, `care-dashboard.ts`, `i18n/care.ts` |
 | Telehealth | `/clinician`, `/clinician/availability`, `/clinician/appointments/[id]`, `/clinician/rules`, `/student/care`, `/student/appointments/[id]`, `/consult/[appointmentId]` | `src/components/telehealth`, `services/scheduling.ts`, `consultations.ts`, `clinical-notes.ts`, `referrals.ts`, `rules-admin.ts` |
-| Institution | `/admin`, `/admin/departments`, `/admin/interventions`, `/admin/reports`, `/admin/users`, `/admin/settings`, `/admin/audit`, `/platform` | `src/components/admin`, `services/admin.ts`, `analytics.ts`, `reports.ts`, `platform.ts` |
+| Institution | `/admin`, `/admin/departments`, `/admin/interventions`, `/admin/reports`, `/admin/users`, `/admin/settings`, `/admin/audit`, `/platform` (a platform admin with an institution picked can use `/admin/*`) | `src/components/admin`, `services/admin.ts`, `analytics.ts`, `reports.ts`, `platform.ts` |
 | Access and landing | `/`, `/sign-in`, `/sign-in/verify`, `/register`, `/set-password`, `/account`, `/account/security`, `/notifications`, `not-found`, `error` | `src/components/auth`, `src/components/landing`, `services/access.ts`, `notifications.ts`, `i18n/access.ts` |
 | Scheduled work | `/api/internal/tick` | `services/risk.ts` and the services it calls |
 

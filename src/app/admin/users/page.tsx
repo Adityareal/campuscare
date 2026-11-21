@@ -3,9 +3,9 @@ import Link from "next/link";
 import type { Role } from "@prisma/client";
 import { LinkTabs } from "@/components/admin/figure";
 import { InviteStaffForm, RowActionForm, StudentInviteForm } from "@/components/admin/forms";
-import { EmptyState, PageHeader, Panel, StatusPill, Table, Td, Th, When, buttonClass, inputClass, linkClass } from "@/components/ui";
+import { EmptyState, Notice, PageHeader, Panel, StatusPill, Table, Td, Th, When, buttonClass, inputClass, linkClass } from "@/components/ui";
 import { requireInstitutionAdmin } from "@/lib/auth/guards";
-import { listInvites, listPeople, type InviteRow, type PersonRow } from "@/lib/services/admin";
+import { countStudents, listInvites, listPeople, type InviteRow, type PersonRow } from "@/lib/services/admin";
 import {
   createStudentInviteAction,
   inviteStaffAction,
@@ -251,7 +251,13 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
         {tab === "students" ? (
           <>
             <SearchForm tab={tab} query={query} />
-            <StudentTable people={await listPeople(actor, { role: "STUDENT", query })} selfId={actor.userId} />
+            {actor.role === "PLATFORM_ADMIN" ? (
+              <Notice tone="info">
+                This institution has {(await countStudents(actor)).toLocaleString("en-IN")} students. Platform administrators see the number only, not names or accounts.
+              </Notice>
+            ) : (
+              <StudentTable people={await listPeople(actor, { role: "STUDENT", query })} selfId={actor.userId} />
+            )}
           </>
         ) : null}
 

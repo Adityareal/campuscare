@@ -52,7 +52,7 @@ With `CAMPUSCARE_DEPLOYMENT=demo` (the only value that turns demo mode on), `/si
 | Meera Iyer | Counsellor |
 | Dr Rohan Desai | Clinician |
 | Vikram Shah | Institution admin (Sahyadri Institute of Technology) |
-| Neha Rao | Platform admin |
+| Neha Rao | Platform admin (creates institutions and can open one to use its administration pages) |
 
 The seed (`prisma/seed.ts`) replays eight weeks of history through the real services. It also creates a second institution, Narmada University, to show that tenants are isolated. Five scripted students show the main paths:
 

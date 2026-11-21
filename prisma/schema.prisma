@@ -112,7 +112,9 @@ model Session {
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
   userAgent  String?
-
+  // Platform administrators only: the institution they have opened. Set and cleared only by
+  // the open and close actions on /platform, and checked again on every request.
+  activeInstitutionId String?
   @@index([userId])
 }
 

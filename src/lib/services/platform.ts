@@ -9,11 +9,60 @@ import { DEFAULT_RULES } from "@/lib/risk/rules";
 import { emailSchema, issueSetPasswordLink, parseInput, personNameSchema, type OneTimeLink } from "@/lib/services/admin";
 
 /*
- * Platform tenant management. Platform administrators create and list institutions only:
- * they see counts of accounts per tenant and never any student or clinical record.
+ * Platform tenant management. Platform administrators create and list institutions, and can
+ * open one (openInstitution / closeInstitution) to use its administration pages with the
+ * limited permission list in PLATFORM_IN_INSTITUTION (permissions.ts). They hold no
+ * student-record, care or clinical permission and cannot manage counsellor, clinician or
+ * student accounts. Opening, switching and closing are written to the institution's audit chain.
  */
 
 export const DEFAULT_CARE_TEAM_HOURS = "Monday to Saturday, 9 am to 6 pm";
+
+/**
+ * Sets (or with null clears) the institution a platform administrator has picked on the
+ * browser's current session. The only writer of Session.activeInstitutionId. The session
+ * update and the audit entries share one transaction.
+ */
+export async function setActiveInstitution(actor: UserActor, tokenHash: string | null, institutionId: string | null): Promise<void> {
+  assertCan(actor, "tenant.manage");
+  if (!tokenHash) fail("NOT_FOUND", "Session not found.");
+  await runTx(async (tx) => {
+    const session = await tx.session.findFirst({ where: { tokenHash, userId: actor.userId, stage: "ACTIVE" } });
+    if (!session) fail("NOT_FOUND", "Session not found.");
+    if (institutionId) {
+      const target = await tx.institution.findUnique({ where: { id: institutionId }, select: { id: true } });
+      if (!target) fail("NOT_FOUND", "Institution not found.");
+    }
+    const previous = session.activeInstitutionId ?? null;
+    if (previous === institutionId) return;
+    await tx.session.update({ where: { id: session.id }, data: { activeInstitutionId: institutionId } });
+    if (previous) {
+      await recordAudit(tx, actor, {
+        action: "platform.institution_close",
+        entityType: "Institution",
+        entityId: previous,
+        metadata: institutionId ? { switchedTo: institutionId } : {},
+        institutionId: previous,
+      });
+    }
+    if (institutionId) {
+      await recordAudit(tx, actor, {
+        action: "platform.institution_open",
+        entityType: "Institution",
+        entityId: institutionId,
+        metadata: previous ? { switchedFrom: previous } : {},
+        institutionId,
+      });
+    }
+  });
+}
+
+export async function openInstitution(actor: UserActor, tokenHash: string | null, institutionId: string): Promise<void> {
+  if (!institutionId) fail("VALIDATION", "Choose an institution.");
+  return setActiveInstitution(actor, tokenHash, institutionId);
+}
+
+export const closeInstitution = (actor: UserActor, tokenHash: string | null) => setActiveInstitution(actor, tokenHash, null);
 
 export type InstitutionRow = {
   id: string;

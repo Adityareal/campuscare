@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import type { User } from "@prisma/client";
 import type { Locale, Role } from "@prisma/client";
@@ -9,7 +10,7 @@ import { createSession, demoModeEnabled, getPendingMfaUser, promotePendingSessio
 import { hashPassword, PASSWORD_MIN_LENGTH, verifyPassword } from "@/lib/auth/password";
 import { generateTotpSecret, otpauthUri, verifyTotp } from "@/lib/auth/totp";
 import { db, runTx } from "@/lib/db";
-import { demoPersona } from "@/lib/demo";
+import { DEMO_PERSONAS, demoPersona } from "@/lib/demo";
 import { DomainError, fail } from "@/lib/errors";
 
 /*
@@ -22,6 +23,12 @@ import { DomainError, fail } from "@/lib/errors";
 const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
 const GENERIC_SIGN_IN_FAILURE = "The email or password is not correct.";
+
+function demoPasswordMatches(actual: string, expected: string): boolean {
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+}
 
 /** Actor recorded for attempts that cannot be tied to a person (unknown account). */
 const ANONYMOUS: SystemActor = systemActor("auth", null);
@@ -82,8 +89,12 @@ export type SignInResult = { next: "home" | "verify"; role: Role };
 export async function signInWithPassword(email: string, password: string, userAgent?: string | null): Promise<SignInResult> {
   const normalised = email.trim().toLowerCase();
   const user = normalised ? await db.user.findUnique({ where: { email: normalised } }) : null;
+  const demoCredential = demoModeEnabled() && user?.isDemo
+    ? DEMO_PERSONAS.find((persona) => persona.email === normalised)
+    : undefined;
+  const hasDemoPassword = !user?.passwordHash && !!demoCredential;
 
-  if (!user || !user.passwordHash || user.status !== "ACTIVE") {
+  if (!user || (!user.passwordHash && !hasDemoPassword) || user.status !== "ACTIVE") {
     await burnVerification(password);
     const reason = !user ? "unknown_account" : user.status !== "ACTIVE" ? "suspended" : "no_password";
     await audit(user ? actorFor(user) : ANONYMOUS, {
@@ -102,7 +113,10 @@ export async function signInWithPassword(email: string, password: string, userAg
     fail("LOCKED", lockedMessage(user.lockedUntil));
   }
 
-  if (!(await verifyPassword(password, user.passwordHash))) {
+  const passwordIsValid = user.passwordHash
+    ? await verifyPassword(password, user.passwordHash)
+    : !!demoCredential && demoPasswordMatches(password, demoCredential.password);
+  if (!passwordIsValid) {
     const lockedUntil = await recordFailedAttempt(user, "auth.sign_in_failed", "wrong_password");
     if (lockedUntil) fail("LOCKED", lockedMessage(lockedUntil));
     fail("UNAUTHENTICATED", GENERIC_SIGN_IN_FAILURE);
@@ -157,8 +171,7 @@ export async function verifySecondFactor(code: string, userAgent?: string | null
 
 // ---------- Demo personas ----------
 
-/** One-click sign-in for the seeded demo people. Refused unless CAMPUSCARE_DEPLOYMENT=demo and the user is a
- * demo user. Server Actions only. */
+/** Internal sign-in helper for integration coverage of seeded demo users. The UI uses password sign-in. */
 export async function signInAsDemoPersona(key: string, userAgent?: string | null): Promise<{ role: Role }> {
   if (!demoModeEnabled()) fail("FORBIDDEN", "Demo sign-in is not available.");
   const persona = demoPersona(key);

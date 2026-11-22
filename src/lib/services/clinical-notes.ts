@@ -1,6 +1,6 @@
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
-import { assertCan, tenantOf } from "@/lib/auth/permissions";
+import { assertCan, isPlatformAdminInstitutionContext, tenantOf } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { decryptField, encryptField } from "@/lib/crypto";
 import { db, runTx } from "@/lib/db";
@@ -32,7 +32,11 @@ export async function addClinicalNote(
 
   return runTx(async (tx) => {
     const appt = await tx.appointment.findFirst({
-      where: { id: input.appointmentId, institutionId, professionalId: actor.userId },
+      where: {
+        id: input.appointmentId,
+        institutionId,
+        ...(isPlatformAdminInstitutionContext(actor) ? {} : { professionalId: actor.userId }),
+      },
       select: { id: true, studentId: true, consultation: { select: { id: true } } },
     });
     if (!appt) fail("NOT_FOUND", "Appointment not found.");
@@ -65,10 +69,12 @@ export async function addClinicalNote(
 export async function listClinicalNotes(actor: UserActor, studentId: string) {
   assertCan(actor, "clinical_note.read");
   const institutionId = tenantOf(actor);
-  const wrote = await db.clinicalNote.findFirst({ where: { institutionId, studentId, authorId: actor.userId }, select: { id: true } });
-  if (!wrote) {
-    const met = await db.appointment.findFirst({ where: { institutionId, studentId, professionalId: actor.userId }, select: { id: true } });
-    if (!met) fail("FORBIDDEN", "You can read clinical notes only for students you have an appointment with.");
+  if (!isPlatformAdminInstitutionContext(actor)) {
+    const wrote = await db.clinicalNote.findFirst({ where: { institutionId, studentId, authorId: actor.userId }, select: { id: true } });
+    if (!wrote) {
+      const met = await db.appointment.findFirst({ where: { institutionId, studentId, professionalId: actor.userId }, select: { id: true } });
+      if (!met) fail("FORBIDDEN", "You can read clinical notes only for students you have an appointment with.");
+    }
   }
   const rows = await db.clinicalNote.findMany({
     where: { institutionId, studentId },

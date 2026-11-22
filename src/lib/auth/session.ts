@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import type { Role } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
+import { actorHasRole } from "@/lib/auth/permissions";
 import { now } from "@/lib/clock";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { db } from "@/lib/db";
@@ -126,9 +127,20 @@ export const getCurrentActor = cache(async (): Promise<UserActor | null> => {
     await db.session.update({ where: { id: session.id }, data: { lastSeenAt: now() } });
   }
   const u = session.user;
+  const actingInstitutionId = u.role === "PLATFORM_ADMIN" ? session.actingInstitutionId : null;
   const mfa: NonNullable<UserActor["mfa"]> =
     u.role === "STUDENT" ? "not_required" : u.mfaEnabledAt ? "enrolled" : u.isDemo && demoModeEnabled() ? "demo_exempt" : "missing";
-  return { kind: "user", userId: u.id, role: u.role, institutionId: u.institutionId, name: u.name, locale: u.locale, mfa, isDemo: u.isDemo };
+  return {
+    kind: "user",
+    userId: u.id,
+    role: u.role,
+    institutionId: actingInstitutionId ?? u.institutionId,
+    actingInstitutionId,
+    name: u.name,
+    locale: u.locale,
+    mfa,
+    isDemo: u.isDemo,
+  };
 });
 
 /** For pages, layouts and server actions: a signed-in actor with one of the given roles, or a
@@ -137,6 +149,6 @@ export async function requireActor(roles?: readonly Role[], opts: { allowMissing
   const actor = await getCurrentActor();
   if (!actor) redirect("/sign-in");
   if (actor.mfa === "missing" && !opts.allowMissingMfa) redirect("/account/security");
-  if (roles && !roles.includes(actor.role)) redirect(homeFor(actor.role));
+  if (roles && !roles.some((role) => actorHasRole(actor, role))) redirect(homeFor(actor.role));
   return actor;
 }

@@ -1,7 +1,7 @@
 import type { ConsultationMode } from "@prisma/client";
 import { systemActor, type UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
-import { assertCan, roleCan, tenantOf } from "@/lib/auth/permissions";
+import { assertCan, can, isPlatformAdminInstitutionContext, tenantOf } from "@/lib/auth/permissions";
 import { DAY, MINUTE, now } from "@/lib/clock";
 import { decryptOptional } from "@/lib/crypto";
 import { db, runTx, type DbLike } from "@/lib/db";
@@ -27,7 +27,7 @@ export async function listOpenSlots(
   actor: UserActor,
   filter: { professionalId?: string; from: Date; to: Date },
 ) {
-  if (!roleCan(actor.role, "appointment.book") && !roleCan(actor.role, "availability.manage")) {
+  if (!can(actor, "appointment.book") && !can(actor, "availability.manage")) {
     fail("FORBIDDEN", "You do not have permission for this action.");
   }
   const institutionId = tenantOf(actor);
@@ -52,7 +52,7 @@ export async function listOwnSlots(actor: UserActor) {
   assertCan(actor, "availability.manage");
   const institutionId = tenantOf(actor);
   return db.availabilitySlot.findMany({
-    where: { institutionId, professionalId: actor.userId, startsAt: { gte: now() } },
+    where: { institutionId, ...(isPlatformAdminInstitutionContext(actor) ? {} : { professionalId: actor.userId }), startsAt: { gte: now() } },
     orderBy: { startsAt: "asc" },
     take: 300,
     select: { id: true, startsAt: true, endsAt: true, mode: true, status: true, appointmentId: true },
@@ -258,13 +258,17 @@ export async function bookAppointment(
 }
 
 export async function cancelAppointment(actor: UserActor, appointmentId: string, reason?: string | null): Promise<void> {
-  const asStudent = roleCan(actor.role, "appointment.book");
-  const asClinician = roleCan(actor.role, "consultation.conduct");
+  const asStudent = can(actor, "appointment.book");
+  const asClinician = can(actor, "consultation.conduct");
   if (!asStudent && !asClinician) fail("FORBIDDEN", "You do not have permission for this action.");
   const institutionId = tenantOf(actor);
   await runTx(async (tx) => {
     const appt = await tx.appointment.findFirst({
-      where: { id: appointmentId, institutionId, ...(asStudent ? { studentId: actor.userId } : { professionalId: actor.userId }) },
+      where: {
+        id: appointmentId,
+        institutionId,
+        ...(asStudent ? { studentId: actor.userId } : isPlatformAdminInstitutionContext(actor) ? {} : { professionalId: actor.userId }),
+      },
     });
     if (!appt) fail("NOT_FOUND", "Appointment not found.");
     const t = now();
@@ -415,7 +419,7 @@ export async function listClinicianSchedule(actor: UserActor, range: { from: Dat
   assertCan(actor, "consultation.conduct");
   const institutionId = tenantOf(actor);
   return db.appointment.findMany({
-    where: { institutionId, professionalId: actor.userId, startsAt: { gte: range.from, lt: range.to } },
+    where: { institutionId, ...(isPlatformAdminInstitutionContext(actor) ? {} : { professionalId: actor.userId }), startsAt: { gte: range.from, lt: range.to } },
     orderBy: { startsAt: "asc" },
     take: 300,
     include: {
@@ -431,7 +435,7 @@ export async function getClinicianAppointment(actor: UserActor, appointmentId: s
   assertCan(actor, "consultation.conduct");
   const institutionId = tenantOf(actor);
   const appt = await db.appointment.findFirst({
-    where: { id: appointmentId, institutionId, professionalId: actor.userId },
+    where: { id: appointmentId, institutionId, ...(isPlatformAdminInstitutionContext(actor) ? {} : { professionalId: actor.userId }) },
     include: {
       student: { select: { id: true, name: true, student: { select: { studentNumber: true, department: { select: { name: true } } } } } },
       referral: { select: { id: true, service: true, status: true, reasonCt: true } },

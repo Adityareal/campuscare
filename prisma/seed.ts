@@ -30,6 +30,7 @@ import { recordAudit } from "@/lib/audit";
 import { DAY, HOUR, MINUTE, now, setClock } from "@/lib/clock";
 import { encryptField, randomToken } from "@/lib/crypto";
 import { closeDb, db } from "@/lib/db";
+import { hashPassword } from "@/lib/auth/password";
 import { assertDemoDeployment, DEMO_INSTITUTION, DEMO_PERSONAS, SECOND_INSTITUTION } from "@/lib/demo";
 import { isDomainError } from "@/lib/errors";
 import { isoDay, istToUtc } from "@/lib/format";
@@ -136,6 +137,8 @@ type Person = { id: string; name: string; role: Role; institutionId: string | nu
 const actorOf = (p: Person): UserActor => ({ kind: "user", userId: p.id, role: p.role, institutionId: p.institutionId, name: p.name, locale: p.locale });
 
 async function createPerson(p: { institutionId: string | null; name: string; email: string; role: Role; locale?: Locale; isDemo?: boolean }): Promise<Person> {
+  const demoPassword = p.isDemo ? DEMO_PERSONAS.find((persona) => persona.email === p.email)?.password : undefined;
+  if (p.isDemo && !demoPassword) throw new Error(`No demo password is configured for ${p.email}.`);
   const u = await db.user.create({
     data: {
       institutionId: p.institutionId,
@@ -144,6 +147,7 @@ async function createPerson(p: { institutionId: string | null; name: string; ema
       role: p.role,
       locale: p.locale ?? "en",
       isDemo: p.isDemo ?? false,
+      passwordHash: demoPassword ? await hashPassword(demoPassword) : null,
       createdAt: now(),
     },
   });

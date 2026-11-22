@@ -5,7 +5,8 @@ import { fail } from "@/lib/errors";
 /**
  * Role capabilities (PRD section 11). Role checks are only the first gate: services also
  * enforce institution scope, student consent and record-level rules.
- * Platform administrators deliberately hold no clinical or student-record permission.
+ * A platform administrator receives institution-scoped capabilities only after explicitly
+ * entering a tenant context. The session keeps the PLATFORM_ADMIN identity for audit attribution.
  */
 const MATRIX = {
   "checkin.create": ["STUDENT"],
@@ -36,12 +37,26 @@ const MATRIX = {
 
 export type Permission = keyof typeof MATRIX;
 
+const TENANT_CONTEXT_ROLES: readonly Role[] = ["PLATFORM_ADMIN", "INSTITUTION_ADMIN", "COUNSELLOR", "CLINICIAN"];
+
+export function isPlatformAdminInstitutionContext(actor: Actor | null | undefined): actor is UserActor & { actingInstitutionId: string } {
+  return !!actor && actor.kind === "user" && actor.role === "PLATFORM_ADMIN" && !!actor.actingInstitutionId;
+}
+
+function rolesForActor(actor: UserActor): readonly Role[] {
+  return isPlatformAdminInstitutionContext(actor) ? TENANT_CONTEXT_ROLES : [actor.role];
+}
+
+export function actorHasRole(actor: UserActor, role: Role): boolean {
+  return rolesForActor(actor).includes(role);
+}
+
 export function roleCan(role: Role, permission: Permission): boolean {
   return (MATRIX[permission] as readonly Role[]).includes(role);
 }
 
 export function can(actor: Actor | null | undefined, permission: Permission): actor is UserActor {
-  return !!actor && actor.kind === "user" && roleCan(actor.role, permission);
+  return !!actor && actor.kind === "user" && rolesForActor(actor).some((role) => roleCan(role, permission));
 }
 
 export function assertCan(actor: Actor, permission: Permission): asserts actor is UserActor {
@@ -50,8 +65,9 @@ export function assertCan(actor: Actor, permission: Permission): asserts actor i
 
 /** Institution-scoped actors only. Returns the institution id for query scoping. */
 export function tenantOf(actor: Actor): string {
-  if (!actor.institutionId) fail("FORBIDDEN", "This action requires an institution context.");
-  return actor.institutionId;
+  const institutionId = isPlatformAdminInstitutionContext(actor) ? actor.actingInstitutionId : actor.institutionId;
+  if (!institutionId) fail("FORBIDDEN", "This action requires an institution context.");
+  return institutionId;
 }
 
 export function permissionsFor(role: Role): Permission[] {

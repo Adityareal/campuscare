@@ -23,6 +23,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import type { Role } from "@prisma/client";
 import { signOutAction } from "@/app/_actions/shell";
+import { exitInstitutionContextAction } from "@/app/platform/actions";
 import { buttonClass, cx } from "@/components/ui/classes";
 import { NavLink } from "@/components/ui/nav-link";
 import type { UserActor } from "@/lib/actor";
@@ -43,7 +44,14 @@ const CARE_WORKSPACE: NavSection = {
 };
 
 /** Route map for staff. Every href here is a page some slice of the app must implement. */
-export function navFor(role: Role): NavSection[] {
+export function navFor(role: Role, inInstitutionContext = false): NavSection[] {
+  if (role === "PLATFORM_ADMIN" && inInstitutionContext) {
+    return [
+      ...navFor("INSTITUTION_ADMIN"),
+      ...navFor("CLINICIAN"),
+      { title: "Platform", items: [{ href: "/platform", label: "Institutions", Icon: BuildingOfficeIcon, exact: true }] },
+    ];
+  }
   switch (role) {
     case "COUNSELLOR":
       return [CARE_WORKSPACE];
@@ -157,7 +165,7 @@ export async function StaffShell({ actor, children }: { actor: UserActor; childr
     db.notification.count({ where: { userId: actor.userId, readAt: null } }),
     actor.institutionId ? db.institution.findUnique({ where: { id: actor.institutionId }, select: { name: true } }) : null,
   ]);
-  const sections = navFor(actor.role);
+  const sections = navFor(actor.role, !!actor.actingInstitutionId);
   const home = sections[0]?.items[0]?.href ?? "/account";
 
   return (
@@ -214,6 +222,17 @@ export async function StaffShell({ actor, children }: { actor: UserActor; childr
         </header>
 
         <main id="main" className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
+          {actor.actingInstitutionId ? (
+            <section aria-label="Platform administrator institution access" className="mb-6 flex flex-col gap-3 rounded-panel border border-line bg-priority-soft p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-ink">Platform administrator access is active</p>
+                <p className="mt-1 text-ink-2">You are working in {institution?.name ?? "this institution"}. Actions and sensitive record reads are attributed to your platform administrator account.</p>
+              </div>
+              <form action={exitInstitutionContextAction}>
+                <button type="submit" className={buttonClass("secondary", "sm")}>Exit institution</button>
+              </form>
+            </section>
+          ) : null}
           {children}
         </main>
       </div>

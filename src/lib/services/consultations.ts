@@ -1,7 +1,7 @@
 import type { AppointmentStatus, ConsultationMode } from "@prisma/client";
 import type { UserActor } from "@/lib/actor";
 import { recordAudit } from "@/lib/audit";
-import { assertCan, roleCan, tenantOf } from "@/lib/auth/permissions";
+import { assertCan, can, isPlatformAdminInstitutionContext, tenantOf } from "@/lib/auth/permissions";
 import { MINUTE, now } from "@/lib/clock";
 import { randomToken } from "@/lib/crypto";
 import { db, runTx } from "@/lib/db";
@@ -58,11 +58,15 @@ export function joinStateOf(a: { status: AppointmentStatus; startsAt: Date; ends
 async function loadForRoom(actor: UserActor, appointmentId: string) {
   const institutionId = tenantOf(actor);
   let role: RoomRole;
-  if (roleCan(actor.role, "appointment.book")) role = "student";
-  else if (roleCan(actor.role, "consultation.conduct")) role = "clinician";
+  if (can(actor, "appointment.book")) role = "student";
+  else if (can(actor, "consultation.conduct")) role = "clinician";
   else return fail("FORBIDDEN", "You do not have permission for this action.");
   const appt = await db.appointment.findFirst({
-    where: { id: appointmentId, institutionId, ...(role === "student" ? { studentId: actor.userId } : { professionalId: actor.userId }) },
+    where: {
+      id: appointmentId,
+      institutionId,
+      ...(role === "student" ? { studentId: actor.userId } : isPlatformAdminInstitutionContext(actor) ? {} : { professionalId: actor.userId }),
+    },
     include: {
       student: { select: { name: true } },
       professional: { select: { name: true } },
@@ -195,7 +199,9 @@ export async function completeConsultation(
   }
 
   await runTx(async (tx) => {
-    const appt = await tx.appointment.findFirst({ where: { id: appointmentId, institutionId, professionalId: actor.userId } });
+    const appt = await tx.appointment.findFirst({
+      where: { id: appointmentId, institutionId, ...(isPlatformAdminInstitutionContext(actor) ? {} : { professionalId: actor.userId }) },
+    });
     if (!appt) fail("NOT_FOUND", "Appointment not found.");
     const t = now();
     if (appt.status !== "BOOKED") fail("INVALID_TRANSITION", "This consultation has already been recorded or the appointment was cancelled.");

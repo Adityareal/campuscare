@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
-import { DemoPanel } from "@/components/auth/demo-panel";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { Notice, linkClass } from "@/components/ui";
-import { demoModeEnabled, getCurrentActor, homeFor } from "@/lib/auth/session";
-import { DEMO_PERSONAS } from "@/lib/demo";
+import { getCurrentActor, homeFor } from "@/lib/auth/session";
 import { accessText, localeFromParam } from "@/lib/i18n/access";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -18,7 +16,6 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   const { lang, notice } = await searchParams;
   const locale = localeFromParam(lang);
   const t = accessText(locale);
-  const demo = demoModeEnabled();
 
   return (
     <AuthShell locale={locale} switchHref={locale === "hi" ? "/sign-in" : "/sign-in?lang=hi"}>
@@ -44,7 +41,6 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         </Link>
       </div>
 
-      {demo ? <DemoPanel personas={DEMO_PERSONAS.map((p) => ({ key: p.key, label: p.label, name: p.name }))} /> : null}
     </AuthShell>
   );
 }

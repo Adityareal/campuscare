@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { UserActor } from "@/lib/actor";
-import { requireActor } from "@/lib/auth/session";
+import { actorHasRole } from "@/lib/auth/permissions";
+import { homeFor, requireActor } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getConsentState } from "@/lib/services/consent";
 
@@ -17,7 +18,13 @@ export async function requireStudent(opts: { allowConsentReview?: boolean } = {}
 
 /** Case management and alert review: counsellors and clinicians. */
 export function requireCareTeam(): Promise<UserActor> {
-  return requireActor(["COUNSELLOR", "CLINICIAN"]);
+  return requireCareWorkspace();
+}
+
+async function requireCareWorkspace(): Promise<UserActor> {
+  const actor = await requireActor();
+  if (!actorHasRole(actor, "COUNSELLOR") && !actorHasRole(actor, "CLINICIAN")) redirect(homeFor(actor.role));
+  return actor;
 }
 
 export function requireClinician(): Promise<UserActor> {

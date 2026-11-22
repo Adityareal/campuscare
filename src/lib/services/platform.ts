@@ -9,8 +9,9 @@ import { DEFAULT_RULES } from "@/lib/risk/rules";
 import { emailSchema, issueSetPasswordLink, parseInput, personNameSchema, type OneTimeLink } from "@/lib/services/admin";
 
 /*
- * Platform tenant management. Platform administrators create and list institutions only:
- * they see counts of accounts per tenant and never any student or clinical record.
+ * Platform tenant management. The platform dashboard lists institutions and account counts.
+ * Student and care records remain unavailable here and can only be opened through a separately
+ * audited, session-scoped institution context.
  */
 
 export const DEFAULT_CARE_TEAM_HOURS = "Monday to Saturday, 9 am to 6 pm";
@@ -114,6 +115,7 @@ export async function createInstitution(
       entityType: "Institution",
       entityId: institution.id,
       metadata: { slug: data.slug, adminUserId: admin.id },
+      institutionId: "platform",
     });
     // The tenant's own chain starts with the creation of its first administrator.
     await recordAudit(tx, actor, {

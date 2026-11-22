@@ -106,6 +106,9 @@ model Session {
   tokenHash  String   @unique
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // A platform admin can explicitly enter one tenant workspace. The original role stays
+  // PLATFORM_ADMIN so all actions remain attributable to the real principal.
+  actingInstitutionId String?
   // MFA_PENDING sessions only allow the second-factor step; they never authorise anything else.
   stage      String   @default("ACTIVE")
   expiresAt  DateTime

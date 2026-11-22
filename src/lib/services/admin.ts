@@ -12,9 +12,9 @@ import type { CrisisContact } from "@/lib/services/config";
 
 /*
  * Institution administration: the staff and student directory, invitations, account access,
- * departments, institution settings and the audit log. Administrators manage accounts but
- * never see a student's check-ins, questionnaires, alerts, cases, messages or clinical notes,
- * so nothing here selects from those tables.
+ * departments, institution settings and the audit log. Institution administrators manage
+ * accounts but do not see a student's care records; platform administrators access those through
+ * the separately audited tenant context and care services.
  */
 
 // ---------- Shared helpers ----------

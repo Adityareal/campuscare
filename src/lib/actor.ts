@@ -6,6 +6,8 @@ export type UserActor = {
   userId: string;
   role: Role;
   institutionId: string | null;
+  /** Set only while a platform administrator is working inside an institution workspace. */
+  actingInstitutionId?: string | null;
   name: string;
   locale: Locale;
   /** Second-factor state. Staff without an enrolled factor are sent to enrol before anything else. */

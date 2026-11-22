@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { guarded, formString, type ActionState } from "@/lib/action-state";
 import { homeFor } from "@/lib/auth/session";
-import { signInAsDemoPersona, signInWithPassword, verifySecondFactor } from "@/lib/auth/signin";
+import { signInWithPassword, verifySecondFactor } from "@/lib/auth/signin";
 import { accessText, localeFromParam } from "@/lib/i18n/access";
 
 async function userAgent(): Promise<string | null> {
@@ -23,13 +23,6 @@ export async function signInAction(_prev: ActionState, form: FormData): Promise<
     if (!email.trim() || !password) return { status: "error", message: accessText(lang).signIn.emptyFields };
     const result = await signInWithPassword(email, password, await userAgent());
     redirect(result.next === "verify" ? `/sign-in/verify${langQuery(lang)}` : homeFor(result.role));
-  });
-}
-
-export async function demoSignInAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  return guarded(async () => {
-    const { role } = await signInAsDemoPersona(formString(form, "persona"), await userAgent());
-    redirect(homeFor(role));
   });
 }
 

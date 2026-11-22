@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { LinkActionState } from "@/components/admin/state";
+import type { RosterImportActionState } from "@/components/admin/roster-import-state";
 import { formInt, formOptional, formString, guarded } from "@/lib/action-state";
 import { requireInstitutionAdmin } from "@/lib/auth/guards";
 import { fail } from "@/lib/errors";
@@ -15,6 +16,7 @@ import {
   verifyProfessional,
   type InviteStaffInput,
 } from "@/lib/services/admin";
+import { importInstitutionRoster } from "@/lib/services/roster-import";
 
 function list(value: string | null): string[] {
   return (value ?? "")
@@ -78,6 +80,38 @@ export async function createStudentInviteAction(_prev: LinkActionState, form: Fo
     revalidatePath("/admin/users");
     return { status: "ok", message: `Invite code ${invite.code} created. Share it with students so they can register.` };
   });
+}
+
+export async function importRosterAction(_prev: RosterImportActionState, form: FormData): Promise<RosterImportActionState> {
+  const batch = formString(form, "batch").slice(0, 80);
+  let result: RosterImportActionState = { status: "idle", batch };
+  const state = await guarded(async () => {
+    const actor = await requireInstitutionAdmin();
+    const serialized = formString(form, "rows");
+    if (!serialized || new TextEncoder().encode(serialized).length > 400_000) {
+      fail("VALIDATION", "This roster is too large to submit. Split it into smaller files and try again.");
+    }
+    let rows: unknown;
+    try {
+      rows = JSON.parse(serialized) as unknown;
+    } catch {
+      fail("VALIDATION", "The roster data could not be read. Choose the file and try again.");
+    }
+    const imported = await importInstitutionRoster(actor, rows);
+    revalidatePath("/admin/users");
+    const createdCount = imported.created.length;
+    const skippedCount = imported.skipped.length;
+    result = {
+      status: "ok",
+      batch,
+      message: `${createdCount} account${createdCount === 1 ? "" : "s"} created; ${skippedCount} row${skippedCount === 1 ? "" : "s"} skipped.`,
+      created: imported.created,
+      skipped: imported.skipped,
+      auditSummaryRecorded: imported.auditSummaryRecorded,
+    };
+    return result;
+  });
+  return state.status === "ok" ? result : { ...state, batch };
 }
 
 export async function revokeInviteAction(_prev: LinkActionState, form: FormData): Promise<LinkActionState> {

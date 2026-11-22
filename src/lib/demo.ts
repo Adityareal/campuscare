@@ -31,8 +31,7 @@ export function assertDemoDeployment(what: string): void {
 }
 
 /**
- * Demo data contract shared by the seed script and the sign-in page. Persona sign-in buttons
- * appear only when CAMPUSCARE_DEPLOYMENT=demo, and only for users the seed created with isDemo = true.
+ * Demo-only people and credentials for the fictional seed data.
  * Email addresses use the reserved .example domain so they can never reach a real inbox.
  */
 export const DEMO_INSTITUTION = {
@@ -51,12 +50,12 @@ export const SECOND_INSTITUTION = {
 } as const;
 
 export const DEMO_PERSONAS = [
-  { key: "student", label: "Student", name: "Aanya Kulkarni", email: "aanya.kulkarni@sahyadri.example", role: "STUDENT" },
-  { key: "counsellor", label: "Counsellor", name: "Meera Iyer", email: "meera.iyer@sahyadri.example", role: "COUNSELLOR" },
-  { key: "clinician", label: "Clinician", name: "Dr Rohan Desai", email: "rohan.desai@sahyadri.example", role: "CLINICIAN" },
-  { key: "admin", label: "Institution admin", name: "Vikram Shah", email: "vikram.shah@sahyadri.example", role: "INSTITUTION_ADMIN" },
-  { key: "platform", label: "Platform admin", name: "Neha Rao", email: "neha.rao@campuscare.example", role: "PLATFORM_ADMIN" },
-] as const satisfies readonly { key: string; label: string; name: string; email: string; role: Role }[];
+  { key: "student", label: "Student", name: "Aanya Kulkarni", email: "aanya.kulkarni@sahyadri.example", password: "AanyaCampusCare#26", role: "STUDENT" },
+  { key: "counsellor", label: "Counsellor", name: "Meera Iyer", email: "meera.iyer@sahyadri.example", password: "MeeraCampusCare#26", role: "COUNSELLOR" },
+  { key: "clinician", label: "Clinician", name: "Dr Rohan Desai", email: "rohan.desai@sahyadri.example", password: "RohanCampusCare#26", role: "CLINICIAN" },
+  { key: "admin", label: "Institution admin", name: "Vikram Shah", email: "vikram.shah@sahyadri.example", password: "VikramCampusCare#26", role: "INSTITUTION_ADMIN" },
+  { key: "platform", label: "Platform admin", name: "Neha Rao", email: "neha.rao@campuscare.example", password: "NehaCampusCare#26", role: "PLATFORM_ADMIN" },
+] as const satisfies readonly { key: string; label: string; name: string; email: string; password: string; role: Role }[];
 
 export type DemoPersona = (typeof DEMO_PERSONAS)[number];
 export type DemoPersonaKey = DemoPersona["key"];

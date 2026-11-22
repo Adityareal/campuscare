@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Role } from "@prisma/client";
 import { LinkTabs } from "@/components/admin/figure";
 import { InviteStaffForm, RowActionForm, StudentInviteForm } from "@/components/admin/forms";
+import { RosterImportForm } from "@/components/admin/roster-import";
 import { EmptyState, PageHeader, Panel, StatusPill, Table, Td, Th, When, buttonClass, inputClass, linkClass } from "@/components/ui";
 import { requireInstitutionAdmin } from "@/lib/auth/guards";
 import { listInvites, listPeople, type InviteRow, type PersonRow } from "@/lib/services/admin";
@@ -12,6 +13,7 @@ import {
   reactivateUserAction,
   revokeInviteAction,
   suspendUserAction,
+  importRosterAction,
 } from "./actions";
 
 export const metadata: Metadata = { title: "People" };
@@ -25,7 +27,7 @@ const ROLE_LABEL: Record<Role, string> = {
   PLATFORM_ADMIN: "Platform administrator",
 };
 
-type Tab = "staff" | "students" | "invites";
+type Tab = "staff" | "students" | "invites" | "import";
 
 function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
@@ -217,20 +219,23 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const actor = await requireInstitutionAdmin();
   const sp = await searchParams;
   const tabParam = first(sp.tab);
-  const tab: Tab = tabParam === "students" || tabParam === "invites" ? tabParam : "staff";
+  const tab: Tab = tabParam === "students" || tabParam === "invites" || tabParam === "import" ? tabParam : "staff";
   const query = (first(sp.q) ?? "").slice(0, 100);
 
   const tabs = [
     { href: "/admin/users?tab=staff", label: "Staff", active: tab === "staff" },
     { href: "/admin/users?tab=students", label: "Students", active: tab === "students" },
     { href: "/admin/users?tab=invites", label: "Invite codes", active: tab === "invites" },
+    { href: "/admin/users?tab=import", label: "Spreadsheet import", active: tab === "import" },
   ];
 
   return (
     <>
       <PageHeader
         title="People"
-        description="Accounts, invitations and access. Administrators see directory details only, never a student's check-ins, questionnaires, cases or messages."
+        description={actor.actingInstitutionId
+          ? "Accounts, invitations and access. You can also review this institution’s individual student and care records while this platform access is active."
+          : "Accounts, invitations and access. Institution administrators see directory details only, never a student's check-ins, questionnaires, cases or messages."}
       />
       <div className="grid gap-6">
         <LinkTabs label="People views" items={tabs} />
@@ -262,6 +267,15 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             </Panel>
             <InviteTable invites={await listInvites(actor)} />
           </>
+        ) : null}
+
+        {tab === "import" ? (
+          <Panel
+            title="Bulk roster import"
+            description="Create student, counsellor and clinician accounts from one Excel or CSV file. Review the rows first; setup links appear after import and are never emailed automatically."
+          >
+            <RosterImportForm action={importRosterAction} />
+          </Panel>
         ) : null}
       </div>
     </>
